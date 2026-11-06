@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Доска формул</title>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&family=STIX+Two+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f2fa;--card:#fff;--ink:#211d36;--mut:#6f6a88;--acc:#d4156b;--onacc:#fff;--soft:#ffe6f0;--line:#e5e1f0;--key:#efecf8;--keyh:#e3def2;--dot:#cfc9e2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17141f;--card:#221e2e;--ink:#f1eef8;--mut:#a29cb8;--acc:#ff5c9b;--onacc:#1d0b16;--soft:#3a1f2f;--line:#352f45;--key:#2c2739;--keyh:#383247;--dot:#3a3449}}
+:root[data-theme="dark"]{--bg:#17141f;--card:#221e2e;--ink:#f1eef8;--mut:#a29cb8;--acc:#ff5c9b;--onacc:#1d0b16;--soft:#3a1f2f;--line:#352f45;--key:#2c2739;--keyh:#383247;--dot:#3a3449}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;background:var(--bg);color:var(--ink);font:600 16px/1.4 Nunito,system-ui,sans-serif}
+#board{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;overscroll-behavior:none;touch-action:none;background-image:radial-gradient(var(--dot) 1.3px,transparent 1.5px);background-size:24px 24px}
+#world{position:absolute;left:0;top:0;transform-origin:0 0}
+.reg{position:absolute;white-space:nowrap;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:6px 14px;font:500 30px/1.35 "STIX Two Text","Cambria Math",serif;cursor:grab;user-select:none;-webkit-user-select:none}
+.reg.on{border-color:var(--acc);box-shadow:0 0 0 4px var(--soft);cursor:text}
+.x{position:absolute;top:-13px;right:-13px;width:26px;height:26px;border-radius:50%;border:0;background:var(--acc);color:var(--onacc);font:800 16px/1 Nunito,sans-serif;cursor:pointer}
+.rv{color:var(--acc);margin-left:.3em}
+.er{font:600 13px Nunito,sans-serif;color:var(--acc);margin-top:-2px}
+.bar{position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top,0px) + 10px);display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:5}
+.bar>*{pointer-events:auto}
+.bar h1{margin:0;font-size:20px;font-weight:800;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 12px}
+.tools{display:flex;gap:6px}
+.tools button{height:38px;min-width:38px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:800 18px Nunito,sans-serif;cursor:pointer}
+.tools .pri{background:var(--acc);border-color:var(--acc);color:var(--onacc);font-size:15px}
+button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.sheet{position:fixed;left:50%;bottom:0;width:min(100%,560px);transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:10px 10px calc(env(safe-area-inset-bottom,0px) + 10px);display:grid;gap:6px;z-index:6;box-shadow:0 -6px 24px rgba(20,10,40,.12)}
+.sheet:not(.open){visibility:hidden}
+.kg{display:grid;gap:6px;grid-template-columns:repeat(var(--c),1fr)}
+.kg[hidden]{display:none}
+.kg button{height:44px;border:0;border-radius:12px;background:var(--key);color:var(--ink);font:800 19px Nunito,sans-serif;cursor:pointer;padding:0}
+.kg button:hover{background:var(--keyh)}
+.kg .o{color:var(--acc)}.kg .sm{font-size:14px}.kg .ok{background:var(--acc);color:var(--onacc)}
+.kg .fr{font-size:.7em}
+.row{display:inline-flex;align-items:center;border-radius:6px}
+.row.e{min-width:.7em;min-height:1em;outline:1.5px dashed var(--mut);outline-offset:-1px}
+.row.on{background:var(--soft)}
+.ef{display:inline-flex;flex-direction:column;align-items:stretch;text-align:center;vertical-align:middle;margin:0 .15em}
+.ef>.row{justify-content:center;padding:0 .15em}
+.ef>.row:first-child{border-bottom:2px solid currentColor;border-radius:0}
+.ef .ef{font-size:.85em}
+.sp{font-size:.65em;vertical-align:super;display:inline-flex;margin-left:.05em}
+.op{margin:0 .22em}.op.s{margin:0 .12em}
+.caret{display:inline-block;width:2px;height:1.05em;background:var(--acc);margin:0 -1px;vertical-align:middle}
+@media (prefers-reduced-motion:no-preference){.caret{animation:bl 1s steps(1) infinite}.sheet{transition:visibility .2s}}
+@keyframes bl{50%{opacity:0}}
+.ph{font:600 16px Nunito,sans-serif;color:var(--mut)}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;font-size:.8em;line-height:1.2;margin:0 .15em}
+.fr>span:first-child{border-bottom:1.5px solid currentColor;padding:0 .25em}
+.rt{white-space:nowrap;display:inline-flex}.ov{border-top:2px solid currentColor;padding:0 .1em;display:inline-flex;min-width:.7em}
+sup,sub{font-size:.6em}
+.menu{position:fixed;right:10px;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:7;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px;display:grid;gap:4px;min-width:170px;box-shadow:0 6px 24px rgba(20,10,40,.15)}
+.menu[hidden]{display:none}
+.menu button{border:0;background:transparent;color:var(--ink);text-align:left;font:800 16px Nunito,sans-serif;padding:10px 12px;border-radius:10px;cursor:pointer}
+.menu button:hover{background:var(--key)}
+#ta{width:100%;resize:none;border:1.5px solid var(--line);border-radius:12px;background:transparent;color:var(--ink);font:600 16px Nunito,sans-serif;padding:8px 10px}
+.tr{display:flex;gap:6px;align-items:center}
+.tr select{flex:1;min-width:0;height:40px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:600 16px Nunito,sans-serif;padding:0 8px}
+.tr button{height:40px;min-width:40px;border:0;border-radius:12px;background:var(--key);color:var(--ink);font:800 16px Nunito,sans-serif;cursor:pointer}
+.tr button.on{background:var(--acc);color:var(--onacc)}
+.tr span{min-width:2ch;text-align:center}
+.txt{white-space:pre;line-height:1.3}
+.fig{display:block;max-width:none;border-radius:6px}
+.ge{font-size:24px;margin-bottom:4px}
+.rs{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;background:var(--card);border:3px solid var(--acc);cursor:nwse-resize;touch-action:none}
+.gz{position:absolute;right:12px;bottom:12px;display:flex;gap:4px}
+.gz button{width:28px;height:28px;border:0;border-radius:8px;background:var(--key);color:var(--ink);font:800 16px Nunito,sans-serif;cursor:pointer}
+.gl{stroke:var(--line);stroke-width:1}.ax{stroke:var(--mut);stroke-width:1.3}.cv{stroke:var(--acc);fill:none;stroke-width:2.4;stroke-linejoin:round}
+svg text{fill:var(--mut);font:600 11px Nunito,sans-serif}
+.reg img{pointer-events:none}
+.toast{position:fixed;left:0;right:0;margin:auto;width:fit-content;max-width:90%;top:calc(env(safe-area-inset-top,0px) + 56px);background:var(--card);border:1.5px solid var(--acc);border-radius:12px;padding:8px 14px;z-index:8;font-size:14px}
+.toast[hidden]{display:none}
+.reg.tx:not(.on){background:transparent;border-color:transparent}
+.pg{position:absolute;background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:0 2px 14px rgba(20,10,40,.08)}
+.pg span{position:absolute;right:14px;bottom:10px;color:var(--mut);font:600 12px Nunito,sans-serif}
+.mx{display:inline-block;vertical-align:middle;border-left:2px solid currentColor;border-right:2px solid currentColor;border-radius:8px;padding:0 6px;margin:0 .15em}
+.mx table{border-collapse:collapse}
+.exp{position:fixed;left:0;top:0;z-index:-1;background:#fff;overflow:hidden;color:#211d36;--card:#fff;--ink:#211d36;--mut:#6f6a88;--acc:#d4156b;--line:#e5e1f0;--soft:#ffe6f0}
+.exp .reg{border-color:transparent;background:transparent;box-shadow:none}
+.fm{display:block}
+.sl{display:block;width:100%;margin:10px 0 2px;accent-color:var(--acc)}
+.ai{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,560px);max-height:75vh;display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:12px 12px calc(env(safe-area-inset-bottom,0px) + 12px);z-index:9;box-shadow:0 -6px 24px rgba(20,10,40,.15)}
+.ai[hidden]{display:none}
+.aih{display:flex;justify-content:space-between;align-items:center;font-size:17px}
+.aih button,.aif button,.air button{border:0;border-radius:12px;background:var(--key);color:var(--ink);font:800 15px Nunito,sans-serif;padding:0 14px;height:38px;cursor:pointer}
+.aim{overflow:auto;min-height:60px;flex:1}
+.mb{margin:6px 0;padding:8px 12px;border-radius:12px;background:var(--key);white-space:pre-wrap;font-size:15px}
+.mb.u{background:var(--soft)}
+.aiq{display:flex;flex-wrap:wrap;gap:6px}
+.aiq button{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 10px;font:600 13px Nunito,sans-serif;cursor:pointer}
+.air{display:flex;gap:6px}
+.air textarea{flex:1;resize:none;border:1.5px solid var(--line);border-radius:12px;background:transparent;color:var(--ink);font:600 16px Nunito,sans-serif;padding:8px 10px}
+.air button{background:var(--acc);color:var(--onacc);height:auto;min-width:46px}
+.aif{display:flex;gap:6px;flex-wrap:wrap}
+.aif button[hidden]{display:none}
+.aif button:disabled,.air button:disabled{opacity:.5}
+#aib{background:linear-gradient(135deg,#7b3fe4,#d4156b);border-color:transparent;color:#fff;font-size:15px}
+#sheet{padding:0 0 env(safe-area-inset-bottom,0px);gap:0;overflow:hidden}
+.tb{display:grid;grid-template-columns:repeat(6,1fr);padding:6px 4px 0}
+.tb button{height:48px;border:0;background:transparent;color:var(--ink);font:600 24px Nunito,sans-serif;cursor:pointer;border-radius:12px}
+.tb button:first-child{font-size:20px}
+.pls{display:flex;gap:8px;overflow-x:auto;padding:8px 10px;scrollbar-width:none}
+.pls::-webkit-scrollbar{display:none}
+.pl{flex:0 0 auto;min-width:88px;height:50px;border:1.5px solid var(--line);border-radius:25px;background:var(--card);color:var(--mut);font:700 13px/1.2 Nunito,sans-serif;cursor:pointer;padding:0 14px}
+.pl.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.kg2{display:grid;grid-template-columns:repeat(var(--c),1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
+.kg2[hidden]{display:none}
+.kg2 button{height:54px;border:0;background:var(--card);color:var(--ink);font:600 21px Nunito,sans-serif;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;white-space:nowrap}
+.kg2 button.n{background:var(--key)}
+.kg2 button.o{color:var(--acc)}
+.kg2 button.sm{font-size:15px}
+.kg2 button:active{background:var(--keyh)}
+.bx{display:inline-block;width:.62em;height:.7em;border:1.5px dotted var(--mut);vertical-align:middle;margin:0 .06em}
+.kg2 .fr{font-size:.62em}
+.kg2 sup,.kg2 sub{font-size:.62em}
+.tp{display:inline-flex;align-items:center;gap:.15em;vertical-align:middle;margin:0 .1em}
+.op3{display:inline-flex;flex-direction:column;align-items:center;line-height:1}
+.op3 .sg{font-size:1.7em;line-height:1}
+.op3 .up,.op3 .lw{font-size:.62em;white-space:nowrap}
+.ais{display:grid;gap:6px}
+.ais[hidden]{display:none}
+.ais select,.ais input{border:1.5px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:600 16px Nunito,sans-serif;padding:8px 10px;min-width:0}
+.ais input[hidden]{display:none}
+.ais small{color:var(--mut);font-size:12px}
+.xt{border-collapse:collapse;font:600 15px Nunito,sans-serif}
+.xt th{background:var(--key);color:var(--mut);font-weight:700;padding:3px 8px;border:1px solid var(--line)}
+.xt td{min-width:72px;height:28px;padding:3px 8px;border:1px solid var(--line);white-space:nowrap}
+.xt td.num{text-align:right}
+.xt td.er{color:var(--acc)}
+.xt td.ac{outline:2px solid var(--acc);outline-offset:-2px;background:var(--soft)}
+.tr input{flex:1;min-width:0;height:40px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:600 16px Nunito,sans-serif;padding:0 10px}
+.tr b{min-width:3ch;text-align:center}
+.shp{position:fixed;right:10px;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:7;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:6px;width:min(300px,92vw);box-shadow:0 6px 24px rgba(20,10,40,.15)}
+.shp[hidden]{display:none}
+.shp small{color:var(--mut);font-size:12px;line-height:1.35}
+.pe{display:flex;align-items:center;gap:8px;font-size:15px}
+.pe i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.pn{position:absolute;top:-22px;left:8px;font:700 11px Nunito,sans-serif;padding:2px 8px;border-radius:8px;color:#fff;white-space:nowrap;pointer-events:none}
+.mx td{padding:.1em .45em;text-align:center}
+.kg button[data-k^="H"],.kg button[data-k^="V"]{font-size:13px}
+@media(max-width:560px){.bar h1{display:none}.bar{justify-content:flex-end}}
+</style>
+</head>
+<body>
+<div id="board"><div id="world"></div></div>
+<div class="bar"><h1>Доска формул</h1><div class="tools"><button id="shb" hidden>👥</button><button id="aib" hidden>✨ ИИ</button><button id="add" class="pri">+ Добавить</button><button id="pp" aria-label="Предыдущая страница">‹</button><button id="pn" aria-label="Страница">1/1</button><button id="pnx" aria-label="Следующая страница">›</button><button id="zo" aria-label="Уменьшить">−</button><button id="zi" aria-label="Увеличить">+</button></div></div>
+<div class="sheet" id="sheet"><div id="k1" class="kg" style="--c:5"></div><div id="k2" class="kg" style="--c:7" hidden></div><div id="k4" class="kg" style="--c:7" hidden></div><div id="k6" class="kg" style="--c:6" hidden></div><div id="k5" class="kg" style="--c:6"></div><div id="k3" class="kg" style="--c:6"></div></div>
+<div class="sheet" id="tsheet"><textarea id="ta" rows="3" placeholder="Текст" aria-label="Текст"></textarea><div class="tr"><select id="ff" aria-label="Шрифт"><option>Nunito</option><option>STIX Two Text</option><option>Georgia</option><option>Arial</option><option>Courier New</option></select><button data-s="-" aria-label="Меньше">A−</button><span id="sz">22</span><button data-s="+" aria-label="Больше">A+</button><button id="bb" aria-label="Жирный"><b>B</b></button><button id="ii" aria-label="Курсив"><i>I</i></button><button id="td" aria-label="Готово">✓</button></div></div>
+<div class="menu" id="menu" hidden><button data-a="f">Формула</button><button data-a="t">Текст</button><button data-a="g">График</button><button data-a="i">Изображение</button><button data-a="tb">Таблица</button><button data-a="p">Новая страница</button><button data-a="x">Импорт .xmcd</button><button data-a="ex">Экспорт .xmcd</button><button data-a="ep">Экспорт PDF</button></div>
+<input type="file" id="file" accept="image/*" hidden>
+<input type="file" id="xf" hidden>
+<div class="toast" id="toast" hidden></div>
+<div class="sheet" id="xsheet"><div class="tr"><b id="xa">A1</b><input id="xi" aria-label="Содержимое ячейки" placeholder="Значение или =формула, например =СУММ(A1:A3)"><button id="xok" aria-label="Готово">✓</button></div><div class="tr"><button data-x="r+">+ строка</button><button data-x="c+">+ столбец</button><button data-x="r-">− строка</button><button data-x="c-">− столбец</button><button data-x="csv">CSV</button></div></div>
+<div class="shp" id="shp" hidden></div>
+<div class="ai" id="ai" hidden><div class="aih"><b>✨ ИИ-инженер</b><span><button id="aig" aria-label="Настройки ИИ" hidden>⚙</button> <button id="aix" aria-label="Закрыть">✕</button></span></div>
+<div class="ais" id="aiset" hidden><select id="aip" aria-label="Провайдер"></select><input id="aimod" aria-label="Модель"><input id="aik" type="password" autocomplete="off" aria-label="API-ключ" placeholder="API-ключ"><input id="aiurl" aria-label="URL" placeholder="https://…/v1/chat/completions"><small id="aih2"></small></div><div class="aim" id="aim"></div><div class="aiq" id="aiq"></div><div class="air"><textarea id="ait" rows="2" placeholder="Что посчитать или изменить на доске?" aria-label="Запрос к ИИ"></textarea><button id="ais" aria-label="Отправить">▶</button></div><div class="aif"><button id="aiu" disabled>↶ Отменить правки ИИ</button><button id="aie" hidden>Исправить ошибки</button><button id="aist" hidden>Стоп</button></div></div>
+<script>
+const $=s=>document.querySelector(s);
+const board=$('#board'),world=$('#world'),sheet=$('#sheet'),tsheet=$('#tsheet'),menu=$('#menu'),ta=$('#ta'),ff=$('#ff'),file=$('#file');
+let regs=[],sel=null,root=[],cur={row:root,idx:0},reg=[],px=0,py=0,s=1,uid=0;
+const parentOf=new WeakMap(),OPS='+-*/=≔<>≤≥≠',CARET='<span class="caret"></span>';
+
+/* ---------- числа ---------- */
+const B={sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,ln:Math.log,log:Math.log10,exp:Math.exp,abs:Math.abs,sqrt:Math.sqrt,floor:Math.floor,ceil:Math.ceil,round:Math.round,sign:Math.sign,sinh:Math.sinh,cosh:Math.cosh,tanh:Math.tanh,coth:x=>1/Math.tanh(x),cot:x=>1/Math.tan(x),sec:x=>1/Math.cos(x),csc:x=>1/Math.sin(x),arcsin:Math.asin,arccos:Math.acos,arctan:Math.atan,arccot:x=>Math.PI/2-Math.atan(x),arsinh:Math.asinh,arcosh:Math.acosh,artanh:Math.atanh,arcoth:x=>Math.atanh(1/x)};
+const isM=a=>Array.isArray(a),need=a=>{if(!isM(a))throw Error('нужна матрица');return a};
+const mm=(f,a,b)=>a.map((r,i)=>r.map((x,j)=>f(x,b[i][j])));
+const mmul=(a,b)=>{if(a[0].length!==b.length)throw Error('размеры матриц не совпадают');return a.map(r=>b[0].map((_,j)=>r.reduce((s,x,k)=>s+x*b[k][j],0)))};
+function dt(a){const n=a.length;if(n!==a[0].length)throw Error('нужна квадратная матрица');const m=a.map(r=>[...r]);let d=1;
+  for(let i=0;i<n;i++){let p=i;for(let r=i+1;r<n;r++)if(Math.abs(m[r][i])>Math.abs(m[p][i]))p=r;if(m[p][i]===0)return 0;if(p!==i){[m[p],m[i]]=[m[i],m[p]];d=-d}d*=m[i][i];for(let r=i+1;r<n;r++){const f=m[r][i]/m[i][i];for(let c=i;c<n;c++)m[r][c]-=f*m[i][c]}}return d}
+function iv(a){const n=a.length;if(n!==a[0].length)throw Error('нужна квадратная матрица');const m=a.map((r,i)=>[...r,...r.map((_,j)=>+(i===j))]);
+  for(let i=0;i<n;i++){let p=i;for(let r=i+1;r<n;r++)if(Math.abs(m[r][i])>Math.abs(m[p][i]))p=r;if(Math.abs(m[p][i])<1e-12)throw Error('матрица вырождена');[m[p],m[i]]=[m[i],m[p]];const f=m[i][i];m[i]=m[i].map(x=>x/f);for(let r=0;r<n;r++)if(r!==i){const g=m[r][i];m[r]=m[r].map((x,c)=>x-g*m[i][c])}}return m.map(r=>r.slice(n))}
+const MF={det:a=>isM(a)?dt(a):a,inv:a=>iv(need(a)),trn:a=>isM(a)?a[0].map((_,j)=>a.map(r=>r[j])):a};
+class Q{constructor(v,d){this.v=v;this.d=d}}
+const DM=(...a)=>[0,1,2,3,4].map(i=>a[i]||0),Z0=DM();
+const U=(()=>{const L=DM(1),Ms=DM(0,1),Tm=DM(0,0,1),Fo=DM(1,1,-2),Pr=DM(-1,1,-2),En=DM(2,1,-2),Pw=DM(2,1,-3),Vo=DM(2,1,-3,-1),Am=DM(0,0,0,1);
+  return{m:[1,L],mm:[1e-3,L],cm:[1e-2,L],km:[1e3,L],kg:[1,Ms],g:[1e-3,Ms],t:[1e3,Ms],s:[1,Tm],ms:[1e-3,Tm],min:[60,Tm],h:[3600,Tm],N:[1,Fo],kN:[1e3,Fo],MN:[1e6,Fo],Pa:[1,Pr],kPa:[1e3,Pr],MPa:[1e6,Pr],GPa:[1e9,Pr],bar:[1e5,Pr],J:[1,En],kJ:[1e3,En],MJ:[1e6,En],W:[1,Pw],kW:[1e3,Pw],MW:[1e6,Pw],V:[1,Vo],kV:[1e3,Vo],A:[1,Am],mA:[1e-3,Am],'Ω':[1,DM(2,1,-3,-2)],Hz:[1,DM(0,0,-1)],L:[1e-3,DM(3)],K:[1,DM(0,0,0,0,1)],deg:[Math.PI/180,Z0]}})();
+const isU=c=>Object.prototype.hasOwnProperty.call(U,c);
+const DN=[[DM(1,1,-2),'N'],[DM(-1,1,-2),'Pa'],[DM(2,1,-2),'J'],[DM(2,1,-3),'W'],[DM(2,1,-3,-1),'V'],[DM(2,1,-3,-2),'Ω'],[DM(0,0,-1),'Hz']];
+const sameD=(a,b)=>a.every((x,i)=>Math.abs(x-b[i])<1e-9),dimsOf=a=>a instanceof Q?a.d:Z0,valOf=a=>a instanceof Q?a.v:a;
+const qn=(v,d)=>d.every(x=>Math.abs(x)<1e-9)?v:new Q(v,d);
+function dname(d){const k=DN.find(([x])=>sameD(x,d));if(k)return k[1];const nm=['m','kg','s','A','K'],p=[],n=[];
+  d.forEach((e,i)=>{if(e>0)p.push(nm[i]+(e!==1?'^'+e:''));if(e<0)n.push(nm[i]+(e!==-1?'^'+(-e):''))});return(p.join('·')||'1')+(n.length?'/'+n.join('·'):'')}
+function fmtQ(q){const k=DN.find(([x])=>sameD(x,q.d));let v=q.v,p='';
+  if(k&&v){const a=Math.abs(v);if(a>=1e9){v/=1e9;p='G'}else if(a>=1e6){v/=1e6;p='M'}else if(a>=1e3){v/=1e3;p='k'}else if(a<1e-3){v*=1e6;p='µ'}else if(a<1){v*=1e3;p='m'}}
+  return fmt(v)+' '+p+dname(q.d).replace(/\^([\d.]+)/g,'<sup>$1</sup>')}
+function opQ(o,a,b){if(isM(a)||isM(b))throw Error('единицы в матрицах не поддерживаются');
+  const A=a instanceof Q?a:{v:a,d:Z0},B2=b instanceof Q?b:{v:b,d:Z0};
+  if(o==='+'||o==='-'){if(!sameD(A.d,B2.d))throw Error('несовместимые размерности: '+dname(A.d)+' и '+dname(B2.d));return qn(o==='+'?A.v+B2.v:A.v-B2.v,A.d)}
+  if(o==='*')return qn(A.v*B2.v,A.d.map((x,i)=>x+B2.d[i]));
+  if(o==='/')return qn(A.v/B2.v,A.d.map((x,i)=>x-B2.d[i]));
+  if(b instanceof Q)throw Error('показатель степени должен быть безразмерным');
+  return qn(A.v**b,A.d.map(x=>x*b))}
+function fnQ(c,a){if(a instanceof Q){if(c==='sqrt')return qn(Math.sqrt(a.v),a.d.map(x=>x/2));if(c==='abs')return qn(Math.abs(a.v),a.d);throw Error('аргумент '+c+' должен быть безразмерным, а не '+dname(a.d))}return isM(a)?a.map(q=>q.map(B[c])):B[c](a)}
+const NUMF={
+  root:(f,a,b)=>{if(b===undefined)throw Error('root(f,a,b)');let lo=a,hi=b,flo=f(lo);const fhi=f(hi);if(flo===0)return lo;if(fhi===0)return hi;
+    if(flo*fhi>0){let ok=false;for(let i=0;i<400;i++){const x0=a+(b-a)*i/400,x1=a+(b-a)*(i+1)/400,y0=f(x0),y1=f(x1);if(y0===0)return x0;if(y0*y1<0){lo=x0;hi=x1;flo=y0;ok=true;break}}if(!ok)throw Error('на отрезке нет смены знака')}
+    for(let k=0;k<100;k++){const m=(lo+hi)/2,fm=f(m);if(fm===0)return m;if(flo*fm<0)hi=m;else{lo=m;flo=fm}}return(lo+hi)/2},
+  int:(f,a,b)=>{if(b===undefined)throw Error('int(f,a,b)');const n=2000,h=(b-a)/n;let s=f(a)+f(b);for(let i=1;i<n;i++)s+=f(a+i*h)*(i%2?4:2);return s*h/3},
+  dif:(f,x)=>{const h=1e-5*Math.max(1,Math.abs(x));return(f(x+h)-f(x-h))/(2*h)}};
+const fact=n=>{if(typeof n!=='number'||n<0||n!==Math.floor(n)||n>170)throw Error('факториал: нужно целое от 0 до 170');let r=1;for(let q=2;q<=n;q++)r*=q;return r};
+const ext=f=>(...a)=>{const d=dimsOf(a[0]);if(a.some(x=>isM(x)||!sameD(dimsOf(x),d)))throw Error('аргументы должны быть числами одной размерности');return qn(f(...a.map(valOf)),d)};
+const MAF={max:ext(Math.max),min:ext(Math.min),
+  mod:(a,b)=>{if(typeof a!=='number'||typeof b!=='number')throw Error('mod: нужны числа');return a-b*Math.floor(a/b)},
+  nroot:(x,n)=>{if(typeof x!=='number'||typeof n!=='number')throw Error('nroot: нужны числа');return x<0&&n%2?-Math.pow(-x,1/n):Math.pow(x,1/n)},
+  comb:(n,k)=>{if(![n,k].every(Number.isInteger)||k<0||k>n)throw Error('comb: целые 0≤k≤n');return Math.round(fact(n)/(fact(k)*fact(n-k)))},
+  perm:(n,k)=>{if(![n,k].every(Number.isInteger)||k<0||k>n)throw Error('perm: целые 0≤k≤n');return Math.round(fact(n)/fact(n-k))},
+  if:(c,a,b)=>valOf(c)?a:b};
+function op(o,a,b){if(a instanceof Q||b instanceof Q)return opQ(o,a,b);const A=isM(a),M=isM(b);
+  if(!A&&!M)return o==='+'?a+b:o==='-'?a-b:o==='*'?a*b:o==='/'?a/b:a**b;
+  if(o==='+'||o==='-'){const f=o==='+'?(x,y)=>x+y:(x,y)=>x-y;
+    if(A&&M){if(a.length!==b.length||a[0].length!==b[0].length)throw Error('размеры матриц не совпадают');return mm(f,a,b)}
+    return A?a.map(r=>r.map(x=>f(x,b))):b.map(r=>r.map(y=>f(a,y)))}
+  if(o==='*')return A&&M?mmul(a,b):A?a.map(r=>r.map(x=>x*b)):b.map(r=>r.map(y=>a*y));
+  if(o==='/'){if(M)throw Error('на матрицу делить нельзя — используйте inv');return a.map(r=>r.map(x=>x/b))}
+  if(A&&!M&&Number.isInteger(b)){if(a.length!==a[0].length)throw Error('нужна квадратная матрица');
+    if(b<0)return op('^',iv(a),-b);let r=a.map((w,i)=>w.map((_,j)=>+(i===j)));for(let k=0;k<b;k++)r=mmul(r,a);return r}
+  throw Error('такая степень матрицы не поддерживается')}
+function calc(str,env){
+  const t=str.match(/\d+\.?\d*|\.\d+|[a-zA-Zα-ωΑ-Ω][a-zA-Zα-ωΑ-Ω0-9]*|<=|>=|!=|[<>]|[+\-*\/^()\[\],;!]/g)||[];if(t.join('')!==str)throw Error('неизвестный символ');let i=0;
+  const pk=()=>t[i],nx=()=>t[i++],isN=c=>c&&/^[\d.]/.test(c),isI=c=>c&&/^[a-zA-Zα-ωΑ-Ω]/.test(c);
+  function cmp(){let a=ex();const c=pk();if(c==='<'||c==='>'||c==='<='||c==='>='||c==='!='){nx();let b=ex();if(isM(a)||isM(b))throw Error('сравнение матриц не поддерживается');if(a instanceof Q||b instanceof Q){if(!sameD(dimsOf(a),dimsOf(b)))throw Error('сравнение величин разной размерности');a=valOf(a);b=valOf(b)}return(c==='<'?a<b:c==='>'?a>b:c==='<='?a<=b:c==='>='?a>=b:a!==b)?1:0}return a}
+  function ex(){let r=tm();while(pk()==='+'||pk()==='-'){const o=nx(),q=tm();r=op(o,r,q)}return r}
+  function tm(){let r=un();for(;;){const c=pk();
+    if(c==='*'||c==='/'){nx();const q=un();r=op(c,r,q)}else if(isI(c)||c==='('||c==='[')r=op('*',r,un());else return r}}
+  function un(){if(pk()==='-'){nx();const v=un();return v instanceof Q?new Q(-v.v,v.d):isM(v)?v.map(q=>q.map(x=>-x)):-v}if(pk()==='+'){nx();return un()}return pw()}
+  function pw(){let b=at();while(pk()==='!'){nx();b=fact(b)}if(pk()==='^'){nx();return op('^',b,un())}return b}
+  function at(){const c=nx();
+    if(c===undefined)throw Error('формула не закончена');
+    if(isN(c))return parseFloat(c);
+    if(c==='('){const r=cmp();if(nx()!==')')throw Error('не хватает «)»');return r}
+    if(c==='['){const rows=[[]];for(;;){rows[rows.length-1].push(ex());const d=nx();if(d===',')continue;if(d===';'){rows.push([]);continue}if(d===']')break;throw Error('в матрице ожидалось «,» «;» или «]»')}
+      const w=rows[0].length;if(rows.some(q=>q.length!==w||q.some(x=>isM(x)||x instanceof Q)))throw Error('строки матрицы разной длины');return rows}
+    if(isI(c)&&MAF[c]&&pk()==='('){nx();const a=[cmp()];while(pk()===','){nx();a.push(cmp())}if(nx()!==')')throw Error('не хватает «)»');return MAF[c](...a)}
+    if(isI(c)&&['sum','prod','intg','ddx','lim'].includes(c)&&pk()==='('){nx();const v=nx();if(!isI(v)||nx()!==',')throw Error(c+': неверная запись');
+      const sep=()=>{if(nx()!==',')throw Error(c+': не хватает аргументов')};
+      const body=()=>{const st=i;let dp=0;while(i<t.length){const q=t[i];if(q==='(')dp++;else if(q===')'){if(!dp)break;dp--}i++}const sx=t.slice(st,i).join('');if(nx()!==')')throw Error('не хватает «)»');return sx};
+      const ev=(sx,x)=>calc(sx,{v:{...env.v,[v]:x},f:env.f});
+      if(c==='ddx'){const sx=body(),x0=env.v[v];if(x0===undefined)throw Error('переменная '+v+' должна быть определена выше');
+        const h=x0 instanceof Q?new Q(1e-5*Math.max(Math.abs(x0.v),1e-3),x0.d):1e-5*Math.max(1,Math.abs(x0));
+        return op('/',op('-',ev(sx,op('+',x0,h)),ev(sx,op('-',x0,h))),op('*',h,2))}
+      if(c==='lim'){const pt=cmp();sep();const sx=body();if(typeof pt!=='number')throw Error('lim: точка должна быть числом');
+        const e=1e-7*Math.max(1,Math.abs(pt)),a=ev(sx,pt-e),b=ev(sx,pt+e);if(typeof a!=='number'||typeof b!=='number')throw Error('lim: значение должно быть числом');
+        if(Math.abs(a-b)>1e-4*Math.max(1,Math.abs(a),Math.abs(b)))throw Error('предел не существует: слева и справа разные значения');return(a+b)/2}
+      const lo=cmp();sep();const hi=cmp();sep();const sx=body();
+      if(c==='sum'||c==='prod'){const a=Math.round(valOf(lo)),b=Math.round(valOf(hi));if(b-a>1e5)throw Error('слишком много слагаемых');let r=null;
+        for(let k=a;k<=b;k++){const x=ev(sx,k);r=r===null?x:op(c==='sum'?'+':'*',r,x)}return r===null?(c==='sum'?0:1):r}
+      const n=1000,h=op('/',op('-',hi,lo),n);let r=null;
+      for(let k=0;k<=n;k++){const f=ev(sx,op('+',lo,op('*',h,k))),w=k===0||k===n?1:k%2?4:2,tm2=op('*',f,w);r=r===null?tm2:op('+',r,tm2)}
+      return op('*',r,op('/',h,3))}
+    if(isI(c)&&NUMF[c]&&pk()==='('){nx();const fn=nx(),F2=env.f[fn];if(!F2)throw Error(c+': первым аргументом укажите функцию, заданную выше');if(nx()!==',')throw Error(c+': нужны аргументы через запятую');
+      const args=[cmp()];while(pk()===','){nx();args.push(cmp())}if(nx()!==')')throw Error('не хватает «)»');
+      if(args.some(a=>typeof a!=='number'))throw Error(c+': аргументы должны быть числами');
+      const ff=x=>{const r=calc(F2.b,{v:{...env.v,[F2.p]:x},f:env.f});if(typeof r!=='number')throw Error('функция '+fn+' должна возвращать число');return r};
+      return NUMF[c](ff,...args)}
+    if(isI(c)){const f=B[c]||MF[c]||env.f[c];
+      if(f&&pk()==='('){nx();const a=ex();if(nx()!==')')throw Error('не хватает «)»');
+        return MF[c]?MF[c](a):B[c]?fnQ(c,a):calc(env.f[c].b,{v:{...env.v,[env.f[c].p]:a},f:env.f})}
+      if(c in env.v)return env.v[c];if(isU(c))return qn(U[c][0],U[c][1]);if(c==='pi')return Math.PI;if(c==='e')return Math.E;
+      throw Error('не определено: '+c)}
+    throw Error('неожиданный символ «'+c+'»')}
+  const r=cmp();if(i<t.length)throw Error('лишнее: '+t[i]);return r}
+const fmt=v=>isNaN(v)?'не число':!isFinite(v)?(v<0?'−∞':'∞'):String(+v.toPrecision(10)).replace('-','−');
+const fmtV=v=>v instanceof Q?fmtQ(v):isM(v)?`<span class="mx"><table>${v.map(r=>`<tr>${r.map(x=>`<td>${fmt(x)}</td>`).join('')}</tr>`).join('')}</table></span>`:fmt(v);
+const cs=v=>v==='π'?'pi':v==='≔'?':=':v==='≤'?'<=':v==='≥'?'>=':v==='≠'?'!=':v;
+const ser=r=>r.map(it=>it.t==='c'?cs(it.v):it.t==='frac'?`((${ser(it.n)})/(${ser(it.d)}))`:it.t==='sqrt'?`sqrt(${ser(it.e)})`:it.t==='tpl'?`${it.k}(${ORD[it.k].map(j=>ser(it.s[j])).join(',')})`:it.t==='mat'?`[${it.cells.map(rw=>rw.map(c=>ser(c)).join(',')).join(';')}]`:`^(${ser(it.e)})`).join('');
+function evalAll(){const env=LASTENV={v:{},f:{}};
+  [...regs].sort((a,b)=>a.y-b.y||a.x-b.x).forEach(r=>{r.val=null;r.err=null;if(!r.tree)return;const q=ser(r.tree);
+    try{if(r.type==='g'){const R=r.R||10;r.pts=[];let er=null;
+        if(q)for(let k=0;k<=240;k++){const x=-R+2*R*k/240;let y=NaN;try{y=calc(q,{v:{...env.v,x},f:env.f});if(y instanceof Q)y=y.v;if(typeof y!=='number')y=NaN}catch(e){er=er||e.message}r.pts.push([x,y])}
+        r.err=er}
+      else if(q.includes(':=')){let[l,rh]=q.split(':=');const ev=rh.endsWith('=');if(ev)rh=rh.slice(0,-1);const m=l.match(/^([a-zA-Zα-ωΑ-Ω][a-zA-Zα-ωΑ-Ω0-9]*)(?:\(([a-zA-Zα-ωΑ-Ω][a-zA-Zα-ωΑ-Ω0-9]*)\))?$/);
+        if(!m)throw Error('слева от ≔ нужно имя');
+        if(m[2])env.f[m[1]]={p:m[2],b:rh};else{env.v[m[1]]=calc(rh,env);if(ev)r.val=env.v[m[1]]}}
+      else if(q.length>1&&q.endsWith('='))r.val=calc(q.slice(0,-1),env)}
+    catch(e){r.err=e.message}})}
+
+/* ---------- редактор формул ---------- */
+const ch=v=>/[a-zα-ω]/.test(v)&&v.length===1&&v!=='π'?`<i>${v}</i>`:v==='*'?'<span class="op s">·</span>':OPS.includes(v)?`<span class="op">${v==='-'?'−':v==='/'?'÷':v==='<'?'&lt;':v==='>'?'&gt;':v}</span>`:v;
+const toHTML=r=>r.map(it=>it.t==='c'?ch(it.v):it.t==='frac'?`<span class="fr"><span>${toHTML(it.n)}</span><span>${toHTML(it.d)}</span></span>`:it.t==='mat'?`<span class="mx"><table>${it.cells.map(rw=>`<tr>${rw.map(c=>`<td>${toHTML(c)}</td>`).join('')}</tr>`).join('')}</table></span>`:it.t==='tpl'?`<span class="tp">${tplHTML(it,toHTML)}</span>`:it.t==='sqrt'?`<span class="rt">√<span class="ov">${toHTML(it.e)}</span></span>`:`<sup>${toHTML(it.e)}</sup>`).join('');
+function rr(row){const id=reg.push(row)-1;let h='';
+  row.forEach((it,i)=>{if(cur.row===row&&cur.idx===i)h+=CARET;h+=ri(it,i)});
+  if(cur.row===row&&cur.idx===row.length)h+=CARET;
+  if(row===root&&!row.length)h+='<span class="ph">Введите формулу</span>';
+  return `<span class="row${row===root?'':row.length?'':' e'}${cur.row===row&&row!==root?' on':''}" data-r="${id}">${h}</span>`}
+const ri=(it,i)=>it.t==='c'?`<span class="it" data-i="${i}">${ch(it.v)}</span>`:it.t==='frac'?`<span class="it ef" data-i="${i}">${rr(it.n)}${rr(it.d)}</span>`:it.t==='sqrt'?`<span class="it rt" data-i="${i}">√<span class="ov">${rr(it.e)}</span></span>`:it.t==='tpl'?`<span class="it tp" data-i="${i}">${tplHTML(it,rr)}</span>`:it.t==='mat'?`<span class="it mx" data-i="${i}"><table>${it.cells.map(rw=>`<tr>${rw.map(c=>`<td>${rr(c)}</td>`).join('')}</tr>`).join('')}</table></span>`:`<span class="it sp" data-i="${i}">${rr(it.e)}</span>`;
+const ins=v=>{cur.row.splice(cur.idx,0,{t:'c',v});cur.idx++};
+function insFrac(){const{row,idx}=cur;let a=idx;
+  while(a>0&&((row[a-1].t==='c'&&/[\dA-Za-zα-ωΑ-Ω.]/.test(row[a-1].v))||row[a-1].t==='pow'))a--;
+  while(a<idx&&row[a].t==='pow')a++;
+  const it={t:'frac',n:row.slice(a,idx),d:[]};row.splice(a,idx-a,it);
+  it.n.forEach(q=>q.t==='pow'&&(parentOf.get(q.e).row=it.n));
+  parentOf.set(it.n,{row,item:it});parentOf.set(it.d,{row,item:it});
+  cur={row:it.n.length?it.d:it.n,idx:0}}
+function insE(t){const p=cur.row[cur.idx-1];
+  if(t==='pow'&&(!p||(p.t==='c'&&OPS.includes(p.v)||(p&&p.v==='('))))ins('x');
+  const it={t,e:[]};parentOf.set(it.e,{row:cur.row,item:it});cur.row.splice(cur.idx,0,it);cur={row:it.e,idx:0}}
+const last=r=>({row:r,idx:r.length});
+function right(){const{row,idx}=cur;
+  if(idx<row.length){const it=row[idx];if(it.t==='c')cur.idx++;else cur={row:slots(it)[0],idx:0};return}
+  const p=parentOf.get(row);if(!p)return;const it=p.item;
+  {const sl=slots(it),i=sl.indexOf(row);cur=i<sl.length-1?{row:sl[i+1],idx:0}:{row:p.row,idx:p.row.indexOf(it)+1}}}
+function left(){const{row,idx}=cur;
+  if(idx>0){const it=row[idx-1];if(it.t==='c')cur.idx--;else{const sl=slots(it);cur=last(sl[sl.length-1])}return}
+  const p=parentOf.get(row);if(!p)return;const it=p.item;
+  {const sl=slots(it),i=sl.indexOf(row);cur=i>0?last(sl[i-1]):{row:p.row,idx:p.row.indexOf(it)}}}
+function vert(dy){const p=parentOf.get(cur.row);if(!p||p.item.t==='pow'||p.item.t==='sqrt')return;const sl=slots(p.item),i=sl.indexOf(cur.row),j=i+dy*(p.item.t==='mat'?p.item.c:1);
+  if(j>=0&&j<sl.length&&(p.item.t==='mat'||Math.abs(j-i)===1))cur={row:sl[j],idx:Math.min(cur.idx,sl[j].length)}}
+const slots=it=>it.t==='frac'?[it.n,it.d]:it.t==='mat'?it.cells.flat():it.t==='tpl'?it.s:[it.e];
+const ORD={sum:[0,1,2,3],prod:[0,1,2,3],intg:[3,0,1,2],ddx:[0,1],lim:[0,1,2]};
+const TK={SUM:['sum',4,['i'],1],PROD:['prod',4,['i'],1],INT:['intg',4,[,,,'x'],0],DDX:['ddx',2,['x'],1],LIM:['lim',3,['x'],1]};
+const tplHTML=(it,R)=>{const s=it.s;
+  if(it.k==='sum'||it.k==='prod')return `<span class="op3"><span class="up">${R(s[2])}</span><span class="sg">${it.k==='sum'?'Σ':'Π'}</span><span class="lw">${R(s[0])}=${R(s[1])}</span></span><span>${R(s[3])}</span>`;
+  if(it.k==='intg')return `<span class="op3"><span class="up">${R(s[1])}</span><span class="sg">∫</span><span class="lw">${R(s[0])}</span></span><span>${R(s[2])}</span><span>&thinsp;<i>d</i></span><span>${R(s[3])}</span>`;
+  if(it.k==='ddx')return `<span class="fr"><span><i>d</i></span><span><i>d</i>${R(s[0])}</span></span><span>${R(s[1])}</span>`;
+  return `<span class="op3"><span>lim</span><span class="lw">${R(s[0])}→${R(s[1])}</span></span><span>${R(s[2])}</span>`};
+function insTpl(K){const[k,n,pre,go]=TK[K],row=cur.row,it={t:'tpl',k,s:[]};
+  for(let q=0;q<n;q++){const c=pre[q]?[{t:'c',v:pre[q]}]:[];parentOf.set(c,{row,item:it});it.s.push(c)}
+  row.splice(cur.idx,0,it);cur={row:it.s[go],idx:it.s[go].length}}
+const isEmpty=it=>slots(it).every(r=>!r.length);
+const mkCell=(it,row)=>{const c=[];parentOf.set(c,{row,item:it});return c};
+function insMat(){const row=cur.row,it={t:'mat',r:2,c:2};it.cells=[0,1].map(()=>[0,1].map(()=>mkCell(it,row)));row.splice(cur.idx,0,it);cur={row:it.cells[0][0],idx:0}}
+function myMat(){let q=cur.row;for(;;){const p=parentOf.get(q);if(!p)return null;if(p.item.t==='mat')return p.item;q=p.row}}
+function matOp(k){const m=myMat();if(!m)return;const row=parentOf.get(m.cells[0][0]).row;
+  if(k==='H+'){m.cells.push(Array.from({length:m.c},()=>mkCell(m,row)));m.r++}
+  else if(k==='V+'){m.cells.forEach(rw=>rw.push(mkCell(m,row)));m.c++}
+  else if(k==='H-'&&m.r>1){m.cells.pop();m.r--}
+  else if(k==='V-'&&m.c>1){m.cells.forEach(rw=>rw.pop());m.c--}
+  if(!slots(m).includes(cur.row))cur={row:m.cells[0][0],idx:0}}
+function back(){const{row,idx}=cur;
+  if(idx>0){const it=row[idx-1];if(it.t==='c'||isEmpty(it)){row.splice(idx-1,1);cur.idx--}else left();return}
+  const p=parentOf.get(row);if(!p)return;
+  if(isEmpty(p.item)){const r=p.row,i=r.indexOf(p.item);r.splice(i,1);cur={row:r,idx:i}}else left()}
+function placeCaret(t,cx){const n=t.closest('.it,.row');if(!n){cur=last(root);return}
+  let row,idx;
+  if(n.classList.contains('row')){row=reg[n.dataset.r];idx=row.length}
+  else{row=reg[n.parentElement.closest('.row').dataset.r];const rc=n.getBoundingClientRect();idx=+n.dataset.i+(cx>rc.left+rc.width/2?1:0)}
+  cur={row,idx}}
+function walk(row){row.forEach(it=>{if(it.t!=='c')slots(it).forEach(r=>{parentOf.set(r,{row,item:it});walk(r)})})}
+function build(str,row){let i=0;
+  const rd=(r,end)=>{while(i<str.length&&!end.includes(str[i])){const c=str[i++];
+    if(c==='['){const it={t:'frac',n:[],d:[]};parentOf.set(it.n,{row:r,item:it});parentOf.set(it.d,{row:r,item:it});r.push(it);rd(it.n,'|');i++;rd(it.d,']');i++}
+    else if((c==='^'||c==='√')&&str[i]==='{'){i++;const it={t:c==='^'?'pow':'sqrt',e:[]};parentOf.set(it.e,{row:r,item:it});r.push(it);rd(it.e,'}');i++}
+    else if(c==='⟦'){const it={t:'mat',r:1,c:1,cells:[[]]};r.push(it);for(;;){const cell=[];it.cells[it.cells.length-1].push(cell);rd(cell,',;⟧');const d=str[i++];if(d===',')continue;if(d===';'){it.cells.push([]);continue}break}const w=Math.max(...it.cells.map(q=>q.length));it.cells.forEach(q=>{while(q.length<w)q.push([])});it.r=it.cells.length;it.c=w}
+    else r.push({t:'c',v:c})}};
+  rd(row,'');return row}
+
+/* ---------- доска ---------- */
+const FONTS={'Nunito':"Nunito,sans-serif",'STIX Two Text':"'STIX Two Text',serif",'Georgia':"Georgia,serif",'Arial':"Arial,Helvetica,sans-serif",'Courier New':"'Courier New',monospace"};
+const esc=t=>t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function plot(r){const W=320,H=224,R=r.R||10,p=r.pts||[];let lo=1/0,hi=-1/0;
+  p.forEach(q=>{if(isFinite(q[1])){lo=Math.min(lo,q[1]);hi=Math.max(hi,q[1])}});
+  if(!isFinite(lo)){lo=-1;hi=1}if(hi-lo<1e-9){lo-=1;hi+=1}
+  const pad=(hi-lo)*.08;lo-=pad;hi+=pad;
+  const X=x=>(x+R)/(2*R)*W,Y=y=>H-(y-lo)/(hi-lo)*H;let d='',pen=0,g='';
+  p.forEach(q=>{if(isFinite(q[1])){d+=(pen?'L':'M')+X(q[0]).toFixed(1)+' '+Y(q[1]).toFixed(1)+' ';pen=1}else pen=0});
+  for(let k=1;k<4;k++)g+=`<line class="gl" x1="${W*k/4}" y1="0" x2="${W*k/4}" y2="${H}"/><line class="gl" x1="0" y1="${H*k/4}" x2="${W}" y2="${H*k/4}"/>`;
+  if(lo<0&&hi>0)g+=`<line class="ax" x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}"/>`;
+  g+=`<line class="ax" x1="${W/2}" x2="${W/2}" y1="0" y2="${H}"/>`;
+  return `<svg class="fig" viewBox="0 0 ${W} ${H}" style="width:${r.w||320}px">${g}<path class="cv" d="${d}"/><text x="4" y="${H-4}">${fmt(-R)}</text><text x="${W-4}" y="${H-4}" text-anchor="end">${fmt(R)}</text><text x="${W/2+4}" y="12">${fmt(+hi.toPrecision(3))}</text><text x="${W/2+4}" y="${H-4}">${fmt(+lo.toPrecision(3))}</text></svg>`}
+function regBody(r,on){const t=r.type||'f',xb=on?'<button class="x" aria-label="Удалить">×</button>':'',rs=on?'<span class="rs"></span>':'';
+  if(t==='tb')return tblHTML(r,on)+xb;
+  if(t==='t')return `<div class="txt" style="font:${r.i?'italic ':''}${r.b?700:500} ${r.size||22}px/1.3 ${FONTS[r.font]||FONTS.Nunito}">${esc(r.text||'')||'<span class="ph">Текст</span>'}</div>${xb}`;
+  if(t==='i')return `<img class="fig" src="${r.src}" style="width:${r.w||240}px" alt="">${xb}${rs}`;
+  if(t==='g')return `<div class="ge">y(x) = ${on?rr(r.tree):toHTML(r.tree)}</div>${plot(r)}${on?'<div class="gz"><button data-d="2" aria-label="Отдалить">−</button><button data-d=".5" aria-label="Приблизить">+</button></div>':''}${xb}${rs}`;
+  return (on?rr(r.tree):toHTML(r.tree)||'<span class="ph">пусто</span>')+xb}
+let npages=1;const PW=860,PH=1216,PG=0;
+function pagesHTML(){npages=Math.max(npages,Math.floor(Math.max(0,...regs.map(r=>r.y))/(PH+PG))+1);let h='';
+  for(let i=0;i<npages;i++)h+=`<div class="pg" style="left:-20px;top:${i*(PH+PG)}px;width:${PW}px;height:${PH}px"><span>Стр. ${i+1} из ${npages}</span></div>`;return h}
+function curPage(){return Math.min(npages-1,Math.max(0,Math.floor(((innerHeight/2-py)/s)/(PH+PG))))}
+function pageLbl(){const e=$('#pn');if(e)e.textContent=(curPage()+1)+'/'+npages}
+function goPage(i){i=Math.max(0,Math.min(npages-1,i));px=(innerWidth-PW*s)/2+20*s;py=70-i*(PH+PG)*s;view();save()}
+const regInner=(r,on)=>regBody(r,on)+(r.val!=null?`<span class="rv">${fmtV(r.val)}</span>`:'')+(r.err&&!on?`<div class="er">${r.err}</div>`:'');
+function slInfo(r){if(r!==sel||r.type!=='f'||!r.tree)return null;const m=ser(r.tree).match(/^[a-zA-Zα-ωΑ-Ω][a-zA-Zα-ωΑ-Ω0-9]*:=(-?\d*\.?\d+)$/);if(!m)return null;
+  const v=parseFloat(m[1]),L=Math.abs(v)||1;if(!r.sl||v<r.sl[0]||v>r.sl[1])r.sl=v>=0?[0,3*L]:[-3*L,0];return{v,min:r.sl[0],max:r.sl[1],step:(r.sl[1]-r.sl[0])/400}}
+const slHTML=r=>{const s=slInfo(r);return s?`<input type="range" class="sl" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.v}" aria-label="Значение">`:''};
+function refresh(){reg=[];regs.forEach(r=>{const el=world.querySelector(`.reg[data-id="${r.id}"] .fm`);if(el)el.innerHTML=regInner(r,r===sel)})}
+function draw(){reg=[];
+  world.innerHTML=pagesHTML()+regs.map(r=>{const on=r===sel;
+    return `<div class="reg${on?' on':''}${r.type==='t'?' tx':''}" data-id="${r.id}" style="left:${r.x}px;top:${r.y}px"><div class="fm">${regInner(r,on)}</div>${slHTML(r)}</div>`}).join('')}
+function view(){world.style.transform=`translate(${px}px,${py}px) scale(${s})`;board.style.backgroundPosition=`${px}px ${py}px`;board.style.backgroundSize=`${24*s}px ${24*s}px`;pageLbl()}
+function zoomAt(f,cx,cy){const n=Math.min(2.5,Math.max(.4,s*f));px=cx-(cx-px)*n/s;py=cy-(cy-py)*n/s;s=n;view();save()}
+function select(r){if(RO&&r){toast('Режим просмотра: редактировать нельзя');r=null}sel=r;shPres(r);hist=[];const t=r&&(r.type||'f');if(r&&r.tree){root=r.tree;cur=last(root)}
+  menu.hidden=true;draw();sheet.classList.toggle('open',t==='f'||t==='g');tsheet.classList.toggle('open',t==='t');$('#xsheet').classList.toggle('open',t==='tb');if(t==='tb'){r.ac=r.ac||'A1';xLoad()}
+  if(t==='t'){ta.value=r.text||'';ff.value=r.font||'Nunito';syncT()}
+  if(r){const sh=t==='t'?tsheet:t==='tb'?$('#xsheet'):sheet,rc=world.querySelector('.reg.on').getBoundingClientRect(),lim=innerHeight-(t==='i'?0:sh.offsetHeight)-16;
+    if(rc.bottom>lim){py-=rc.bottom-lim;view()}if(rc.top<60){py+=60-rc.top;view()}}}
+const LS='mcboard1';
+function save(){try{localStorage.setItem(LS,JSON.stringify({regs:regs.map(({val,err,pts,...o})=>o),px,py,s,npages}))}catch(_){}syncFlush()}
+function demo(){[[24,90,'a≔3'],[24,160,'b≔4'],[24,230,'c≔√{a^{2}+b^{2}}'],[24,300,'c='],[230,90,'f(x)≔x^{2}+1'],[230,170,'f(b)='],[230,250,'[a+b|2]=']]
+  .forEach(([x,y,t])=>regs.push({id:++uid,x,y,tree:build(t,[])}))}
+function load(){try{const d=JSON.parse(localStorage.getItem(LS));
+  if(d&&d.regs&&d.regs.length){regs=d.regs;regs.forEach(r=>{if(r.tree)walk(r.tree);uid=Math.max(uid,r.id)});px=d.px||0;py=d.py||0;s=d.s||1;npages=d.npages||1;return}}catch(_){}
+  demo()}
+function add(t){menu.hidden=true;if(t==='i')return file.click();if(t==='x')return xf.click();if(t==='p'){npages++;draw();save();return goPage(npages-1)}
+  if(t==='ex')return expX();if(t==='ep')return expPdf();
+  const r={id:++uid,type:t,x:(innerWidth/2-px)/s-90,y:(innerHeight*.28-py)/s};
+  if(t==='t'){r.text='';r.font='Nunito';r.size=22}else if(t==='tb'){r.rows=6;r.cols=4;r.cells={};r.ac='A1'}else{r.tree=t==='g'?build('sin(x)',[]):[];if(t==='g'){r.R=10;r.w=320}}
+  regs.push(r);select(r);save();if(t==='t')ta.focus()}
+file.onchange=()=>{const f=file.files[0];if(!f)return;const fr=new FileReader();
+  fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0,c.width,c.height);
+    const r={id:++uid,type:'i',src:c.toDataURL('image/jpeg',.8),w:Math.min(280,c.width),x:(innerWidth/2-px)/s-100,y:(innerHeight*.25-py)/s};regs.push(r);select(r);save()};im.src=fr.result};
+  fr.readAsDataURL(f);file.value=''};
+/* ---------- импорт .xmcd ---------- */
+const xf=$('#xf'),kids=n=>[...n.children].filter(c=>c.localName!=='result'),ln=n=>n.localName,row=t=>[...t].map(v=>({t:'c',v}));
+const toast=m=>{const e=$('#toast');e.textContent=m;e.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>e.hidden=true,7000)};
+const NM=t=>t.replace(/[^a-zA-Zα-ωΑ-Ω0-9]/g,'').replace(/^\d+/,'');
+function ml(n){const t=ln(n),k=kids(n);
+  const par=(q,min)=>q.p<min?[...row('('),...q.r,...row(')')]:q.r;
+  const join=(A,sep,min)=>A.flatMap((q,i)=>[...(i?row(sep):[]),...par(q,min)]);
+  if(t==='id'){let s=(n.textContent+(n.getAttribute('subscript')||'')).trim();if(s==='pi')s='π';s=s==='π'?s:NM(s);if(!s)s=(n.textContent||'?').trim()||'?';return{r:row(s),p:9}}
+  if(t==='real'||t==='integer'){const v=parseFloat(n.textContent);if(isNaN(v)||/e/i.test(String(v)))throw Error('num');return{r:row(String(v)),p:v<0?3:9}}
+  if(t==='parens')return ml(k[0]);
+  if(t==='eval'){const q=ml(k[0]);return{r:q.r,p:q.p,ev:1}}
+  if(t==='matrix'){const R=+n.getAttribute('rows'),C=+n.getAttribute('cols');if(!R||!C||k.length!==R*C)throw Error('matrix');
+    const it={t:'mat',r:R,c:C,cells:[]};for(let i=0;i<R;i++)it.cells.push(k.slice(i*C,i*C+C).map(q=>ml(q).r));return{r:[it],p:9}}
+  if(t==='apply'){const h=ln(k[0]),A=k.slice(1).map(ml);
+    const rl={lessThan:'<',greaterThan:'>',lessOrEqual:'≤',greaterOrEqual:'≥',notEqual:'≠'}[h];
+    if(rl)return{r:[...par(A[0],1),{t:'c',v:rl},...par(A[1],1)],p:0};
+    if(h==='plus')return{r:join(A,'+',1),p:1};
+    if(h==='minus'&&A.length===2)return{r:[...par(A[0],1),...row('-'),...par(A[1],2)],p:1};
+    if(h==='minus'||h==='neg')return{r:[...row('-'),...par(A[0],3)],p:3};
+    if(h==='mult')return{r:join(A,'*',2),p:2};
+    if(h==='div')return{r:[{t:'frac',n:A[0].r,d:A[1].r}],p:9};
+    if(h==='pow')return{r:[...par(A[0],9),{t:'pow',e:A[1].r}],p:4};
+    if(h==='sqrt')return{r:[{t:'sqrt',e:A[0].r}],p:9};
+    if(h==='absval')return{r:[...row('abs('),...A[0].r,...row(')')],p:9};
+    if(h==='transpose'||h==='determinant')return{r:[...row(h==='transpose'?'trn':'det'),...row('('),...A[0].r,...row(')')],p:9};
+    if(h==='id')return{r:[...ml(k[0]).r,...row('('),...join(A,',',0),...row(')')],p:9};
+    throw Error('операция ml:'+h)}
+  throw Error('узел ml:'+t)}
+function xTree(m){const t=ln(m),k=kids(m);
+  if(t==='eval')return[...(ln(k[0])==='define'?xTree(k[0]):ml(k[0]).r),{t:'c',v:'='}];
+  if(t==='define'){let nm,rhs;
+    if(m.getAttribute('name')&&k.length===1){nm=row(NM(m.getAttribute('name')));rhs=k[0]}
+    else if(ln(k[0])==='function'){const f=kids(k[0]),bv=f.find(c=>ln(c)==='boundVars');
+      nm=[...ml(f.find(c=>ln(c)==='id')).r,...row('('),...kids(bv).flatMap((c,i)=>[...(i?row(','):[]),...ml(c).r]),...row(')')];rhs=k[1]}
+    else{nm=ml(k[0]).r;rhs=k[1]}
+    const R=ml(rhs);return[...nm,{t:'c',v:'≔'},...R.r,...(R.ev?[{t:'c',v:'='}]:[])]}
+  return ml(m).r}
+async function xImg(pic,bin,g){
+  const ref=[pic,...pic.getElementsByTagName('*')].map(e=>e.getAttribute('item-idref')||e.getAttribute('item-id')).find(Boolean);
+  const inl=pic.textContent.replace(/\s/g,''),d=(ref&&bin[ref])||(inl.length>200?inl:'');
+  const mt=/^iVBOR/.test(d)?'png':/^\/9j\//.test(d)?'jpeg':/^R0lG/.test(d)?'gif':/^Qk/.test(d)?'bmp':/^UklG/.test(d)?'webp':'';
+  if(!mt)return null;
+  const src=await new Promise(res=>{const im=new Image();im.onload=()=>{const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85))};im.onerror=()=>res(null);im.src='data:image/'+mt+';base64,'+d});
+  return src&&{src,w:Math.max(80,(parseFloat(g.getAttribute('width'))||120)*1.6)}}
+async function importX(doc){const out=[];let skip=0;const bin={},why={};
+  for(const it of doc.getElementsByTagNameNS('*','item')){const id=it.getAttribute('item-idref')||it.getAttribute('item-id')||it.getAttribute('id'),t=it.textContent.replace(/\s/g,'');if(id&&!it.children.length&&t.length>100)bin[id]=t}
+  const x0=24,y0=regs.length?(Math.floor(Math.max(...regs.map(r=>r.y))/(PH+PG))+1)*(PH+PG)+50:50;
+  for(const g of doc.getElementsByTagNameNS('*','region')){
+    const x=x0+(parseFloat(g.getAttribute('left'))||0)*2,y=y0+(parseFloat(g.getAttribute('top'))||0)*2.6;
+    const m=g.getElementsByTagNameNS('*','math')[0],tx=g.getElementsByTagNameNS('*','text')[0],pic=g.getElementsByTagNameNS('*','picture')[0];
+    try{if(m){const tree=xTree([...m.children][0]);walk(tree);out.push({id:++uid,type:'f',x,y,tree})}
+      else if(pic){const im=await xImg(pic,bin,g);if(im)out.push({id:++uid,type:'i',x,y,src:im.src,w:im.w});else{skip++;why['картинка не PNG/JPEG']=(why['картинка не PNG/JPEG']||0)+1}}
+      else if(tx){const ps=[...tx.getElementsByTagNameNS('*','p')].map(p=>p.textContent.trim()).filter(Boolean);
+        out.push({id:++uid,type:'t',x,y,text:ps.join('\n')||tx.textContent.trim(),font:'Nunito',size:18})}
+      else{skip++;why['регион без math/text/picture']=(why['регион без math/text/picture']||0)+1}}catch(e){skip++;why[e.message]=(why[e.message]||0)+1;if(m)out.push({id:++uid,type:'t',x,y,text:'⚠ '+m.textContent.replace(/\s+/g,' ').trim().slice(0,200),font:'Nunito',size:16})}}
+  if(!out.length)throw Error('подходящих регионов не найдено');
+  regs.push(...out);evalAll();draw();save();goPage(Math.floor(y0/(PH+PG)));
+  toast('Импортировано регионов: '+out.length+(skip?', не распознано (вставлено текстом): '+skip+' ('+Object.entries(why).map(([k,v])=>k+' ×'+v).join(', ')+')':''))}
+xf.onchange=async()=>{const f=xf.files[0];xf.value='';if(!f)return;
+  try{const u=new Uint8Array(await f.arrayBuffer());
+    const txt=u[0]===0x1f&&u[1]===0x8b?await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(u);
+    const doc=new DOMParser().parseFromString(txt,'application/xml');
+    if(doc.getElementsByTagName('parsererror').length)throw Error('файл не похож на XML');
+    await importX(doc)}catch(e){toast('Не удалось импортировать: '+e.message)}};
+/* ---------- ИИ-агент ---------- */
+let SAMPLE=null,aiSnap=null,aiCtl=null,aiErrs=[];
+if(window.claude&&claude.use)claude.use('sample').then(f=>{if(f){SAMPLE=f;$('#aib').hidden=false}}).catch(()=>{});else{$('#aib').hidden=false;$('#aig').hidden=false}
+const mk=row=>row.map(it=>it.t==='c'?it.v:it.t==='frac'?`[${mk(it.n)}|${mk(it.d)}]`:it.t==='sqrt'?`√{${mk(it.e)}}`:it.t==='tpl'?`${it.k}(${ORD[it.k].map(j=>mk(it.s[j])).join(',')})`:it.t==='mat'?`⟦${it.cells.map(rw=>rw.map(c=>mk(c)).join(',')).join(';')}⟧`:`^{${mk(it.e)}}`).join('');
+const plainV=v=>Array.isArray(v)?'⟦'+v.map(r=>r.map(x=>fmt(x)).join(',')).join(';')+'⟧':v instanceof Q?fmtQ(v).replace(/<[^>]+>/g,''):fmt(v);
+const aiState=()=>JSON.stringify(regs.slice(0,150).map(r=>{const o={id:r.id,type:r.type||'f',x:Math.round(r.x),y:Math.round(r.y)};if(r.type==='t')o.text=r.text;else if(r.tree){o.f=mk(r.tree);if(r.val!=null)o.value=plainV(r.val);if(r.err)o.error=r.err}return o}));
+const AIDOC=`Ты — инженер-ассистент внутри редактора формул в стиле Mathcad на бесконечной доске. Отвечай ТОЛЬКО JSON без текста вне JSON: {"say":"короткий ответ по-русски","ops":[...]}.
+Операции ops:
+{"op":"add","type":"f","f":"формула","col":0} — формула; type "g" — график (f — выражение от x); type "t" — текст: {"op":"add","type":"t","text":"...","size":18}
+{"op":"set","id":число,"f":"формула"} или {"op":"set","id":число,"text":"..."} — изменить
+{"op":"del","id":число}
+Новые регионы ставятся сверху вниз в порядке следования; "col":1 — вторая колонка справа.
+Формат формулы (одна строка): имя≔выражение — присваивание; выражение= — показать результат; имя≔выражение= — присвоить и показать. Дробь [числитель|знаменатель], степень x^{2}, корень √{x}, матрица ⟦1,2;3,4⟧, сравнения < > ≤ ≥ ≠. Умножение явно знаком * (или число перед именем: 2x). Имена: латинские и греческие буквы и цифры (P4, α, σ1), без подчёркиваний и пробелов. Функция: f(x)≔x^{2}+1. Константы: π, e.
+Встроено: sin cos tan cot sec csc asin acos atan arcsin arccos arctan sinh cosh tanh ln log exp abs sqrt floor ceil round sign max min mod nroot(x,n) comb perm if(условие,a,b) n! det inv trn; операторы sum(i,a,b,выражение) сумма, prod(i,a,b,выражение) произведение, intg(x,a,b,выражение) определённый интеграл, ddx(x,выражение) производная в точке x (x должна быть определена выше), lim(x,точка,выражение) предел; root(f,a,b) — корень на отрезке, int(f,a,b) — интеграл, dif(f,x) — производная в точке (f — имя функции пользователя, аргументы через запятую). Углы в радианах (число*deg переводит градусы).
+Единицы пишутся после числа: 12kN, 6m, 200GPa, 9.81m/s^{2}. Доступны: m mm cm km kg g t s ms min h N kN MN Pa kPa MPa GPa bar J kJ MJ W kW MW V kV A mA Ω Hz L K deg. Размерности проверяются автоматически; перевод единиц — делением: F/kN=.
+Порядок вычисления — сверху вниз и слева направо, переменная должна быть определена выше. Перед расчётом ставь текстовый заголовок (type "t"). Не используй то, чего нет в списке.`;
+function addMsg(c,t){const d=document.createElement('div');d.className='mb '+c;d.textContent=t;$('#aim').appendChild(d);$('#aim').scrollTop=1e9;return d}
+const setBusy=b=>{$('#ais').disabled=b;$('#aist').hidden=!b};
+async function aiRun(prompt){
+  addMsg('u',prompt);const el=addMsg('a','Думаю…');aiCtl=new AbortController();setBusy(true);$('#aie').hidden=true;
+  try{const d=await aiCall(AIDOC+'\n\nТекущая доска (JSON):\n'+aiState()+'\n\nЗапрос пользователя: '+prompt,aiCtl.signal);aiApply(d,el)}
+  catch(e){el.textContent=e&&e.code==='cancelled'?'Остановлено.':({not_granted:'Доступ к Claude не разрешён.',rate_limited:'Слишком много запросов — повторите позже.',invalid_json:'ИИ ответил не в том формате — попробуйте переформулировать.',net:(e&&e.msg)||'Нет связи с ИИ.'}[e&&e.code]||'Не удалось получить ответ ('+((e&&e.code)||'ошибка')+').')}
+  setBusy(false)}
+function aiApply(d,el){
+  const ops=Array.isArray(d&&d.ops)?d.ops:[];aiSnap=JSON.stringify(regs,(k,v)=>k==='val'||k==='err'||k==='pts'?undefined:v);
+  const base=regs.length?Math.max(...regs.map(r=>r.y))+110:60,acc=[0,0],added=[],touched=[];let nd=0;
+  for(const o of ops){try{
+    if(o.op==='add'){const col=o.col?1:0,t=o.type==='g'||o.type==='t'?o.type:'f',x=24+col*420,y=base+acc[col];let r;
+      if(t==='t'){const sz=Math.min(60,Math.max(12,+o.size||18));r={id:++uid,type:'t',x,y,text:String(o.text||''),font:'Nunito',size:sz};acc[col]+=sz*2+30}
+      else{const row=build(String(o.f||''),[]);walk(row);r={id:++uid,type:t,x,y,tree:row};if(t==='g'){r.R=+o.R||10;r.w=320;acc[col]+=310}else acc[col]+=84}
+      regs.push(r);added.push(r)}
+    else if(o.op==='set'){const r=regs.find(q=>String(q.id)===String(o.id));if(!r)continue;
+      if(o.f!=null&&r.tree){const row=build(String(o.f),[]);walk(row);r.tree=row;if(sel===r)root=row}
+      if(o.text!=null&&r.type==='t')r.text=String(o.text);touched.push(r)}
+    else if(o.op==='del'){const n=regs.length;regs=regs.filter(q=>String(q.id)!==String(o.id));nd+=n-regs.length}
+  }catch(_){}}
+  evalAll();select(null);
+  const bad=[...added,...touched].filter(r=>r.err);aiErrs=bad.map(r=>(r.tree?mk(r.tree):r.text)+' → '+r.err);
+  if(added.length){const f=added[0];px=16-f.x*s;py=90-f.y*s;view()}
+  save();
+  el.textContent=(d&&d.say?String(d.say):'Готово.')+'\n(добавлено: '+added.length+', изменено: '+touched.length+', удалено: '+nd+')'+(bad.length?'\n⚠ Ошибки в расчёте:\n'+aiErrs.join('\n'):'');
+  $('#aiu').disabled=!ops.length;$('#aie').hidden=!bad.length}
+const AIQ=['Объясни, что считает доска','Найди ошибки и исправь','Рассчитай балку на двух опорах: пролёт 6 м, нагрузка 12 кН/м','Найди корень x³−2x−5 и построй график'];
+$('#aiq').innerHTML=AIQ.map(q=>`<button type="button">${q}</button>`).join('');
+$('#aiq').onclick=e=>{const b=e.target.closest('button');if(b&&!$('#ais').disabled)aiRun(b.textContent)};
+const aiSend=()=>{const v=$('#ait').value.trim();if(!v||$('#ais').disabled)return;$('#ait').value='';aiRun(v)};
+$('#aib').onclick=()=>{select(null);$('#ai').hidden=false;if(!$('#aim').children.length)addMsg('a','Я вижу всё, что лежит на доске. Опишите задачу — я добавлю или поправлю формулы, графики и пояснения. Всё можно отменить.');$('#ait').focus()};
+$('#aix').onclick=()=>{$('#ai').hidden=true};
+$('#ais').onclick=aiSend;$('#ait').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiSend()}};
+$('#aist').onclick=()=>aiCtl&&aiCtl.abort();
+$('#aie').onclick=()=>aiRun('Исправь ошибки в этих регионах, чтобы расчёт был корректным:\n'+aiErrs.join('\n'));
+$('#aiu').onclick=()=>{if(!aiSnap)return;regs=JSON.parse(aiSnap);regs.forEach(r=>r.tree&&walk(r.tree));aiSnap=null;evalAll();select(null);save();$('#aiu').disabled=true;addMsg('a','Правки ИИ отменены.')};
+const PROV={poll:{n:'Pollinations — без ключа',u:'https://text.pollinations.ai/openai',m:'openai',k:0,h:'ключ не нужен'},
+  or:{n:'OpenRouter — бесплатные модели',u:'https://openrouter.ai/api/v1/chat/completions',m:'meta-llama/llama-3.3-70b-instruct:free',k:1,h:'бесплатный ключ: openrouter.ai/keys'},
+  groq:{n:'Groq — бесплатный тариф',u:'https://api.groq.com/openai/v1/chat/completions',m:'llama-3.3-70b-versatile',k:1,h:'бесплатный ключ: console.groq.com/keys'},
+  gem:{n:'Google Gemini — бесплатный тариф',u:'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',m:'gemini-2.0-flash',k:1,h:'бесплатный ключ: aistudio.google.com/apikey'},
+  own:{n:'Свой (OpenAI-совместимый)',u:'',m:'',k:1,h:'укажите URL, модель и ключ'}};
+const aiCfg=()=>{try{return{p:'poll',m:'',k:'',u:'',...JSON.parse(localStorage.getItem('mcai')||'{}')}}catch(_){return{p:'poll',m:'',k:'',u:''}}};
+const aiRead=()=>{try{localStorage.setItem('mcai',JSON.stringify({p:$('#aip').value,m:$('#aimod').value.trim(),k:$('#aik').value.trim(),u:$('#aiurl').value.trim()}))}catch(_){}};
+function aiUi(){const c=aiCfg(),P=PROV[c.p]||PROV.poll;
+  $('#aip').innerHTML=Object.entries(PROV).map(([k,v])=>`<option value="${k}"${k===c.p?' selected':''}>${v.n}</option>`).join('');
+  $('#aimod').value=c.m;$('#aimod').placeholder='Модель (по умолчанию '+(P.m||'—')+')';$('#aik').value=c.k;$('#aik').hidden=!P.k;$('#aiurl').value=c.u;$('#aiurl').hidden=c.p!=='own';
+  $('#aih2').textContent=P.h+'. Ключ хранится только в этом браузере/приложении.'}
+$('#aig').onclick=()=>{aiUi();$('#aiset').hidden=!$('#aiset').hidden};
+['aip','aimod','aik','aiurl'].forEach(id=>$('#'+id).addEventListener('change',()=>{if(id==='aip')$('#aimod').value='';aiRead();if(id==='aip')aiUi()}));
+async function aiCall(prompt,signal){
+  if(SAMPLE)return SAMPLE.json(prompt,{signal,cache:false});
+  const c=aiCfg(),P=PROV[c.p]||PROV.poll,url=c.p==='own'?c.u:P.u,model=c.m||P.m;
+  if(!url)throw{code:'net',msg:'Укажите URL в настройках ⚙'};
+  if(P.k&&!c.k)throw{code:'net',msg:'Нужен API-ключ: откройте ⚙ и вставьте ключ ('+P.h+')'};
+  let r;try{r=await fetch(url,{method:'POST',signal,headers:{'Content-Type':'application/json',...(c.k?{Authorization:'Bearer '+c.k}:{})},body:JSON.stringify({model,temperature:.2,messages:[{role:'user',content:prompt}]})})}
+  catch(e){if(e&&e.name==='AbortError')throw{code:'cancelled'};throw{code:'net',msg:'Нет связи с ИИ-сервисом. Проверьте интернет; в просмотре на claude.ai внешние запросы заблокированы, этот режим работает в APK и в локальном файле.'}}
+  if(!r.ok){let tx='';try{tx=(await r.text()).slice(0,160)}catch(_){}throw{code:'net',msg:'ИИ-сервис ответил '+r.status+(tx?': '+tx:'')}}
+  const j=await r.json(),txt=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'';
+  const a=txt.indexOf('{'),b=txt.lastIndexOf('}');if(a<0||b<a)throw{code:'invalid_json'};
+  try{return JSON.parse(txt.slice(a,b+1))}catch(_){throw{code:'invalid_json'}}}
+/* ---------- таблицы (как в Excel) ---------- */
+let LASTENV={v:{},f:{}};
+const colName=i=>{let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+const colIdx=s=>[...s].reduce((a,c)=>a*26+c.charCodeAt(0)-64,0)-1;
+const XA={СУММ:'SUM',СРЗНАЧ:'AVERAGE',МИН:'MIN',МАКС:'MAX',СЧЁТ:'COUNT',СЧЕТ:'COUNT',ОКРУГЛ:'ROUND',ЕСЛИ:'IF',КОРЕНЬ:'SQRT',СТЕПЕНЬ:'POWER',ОСТАТ:'MOD',ПИ:'PI'};
+function xfm(src,get){
+  const t=src.match(/\"[^\"]*\"|\d+\.?\d*|\.\d+|[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_.]*|<>|<=|>=|[-+*\/^&=<>(),:;%]/g)||[];let i=0;
+  const pk=()=>t[i],nx=()=>t[i++],sc=v=>Array.isArray(v)?v[0]:v;
+  const num=v=>{v=sc(v);if(typeof v==='number')return v;if(typeof v==='boolean')return+v;if(v&&v.e)throw Error(v.e);if(v===''||v==null)return 0;const n=+String(v).replace(',','.');if(isNaN(n))throw Error('#ЗНАЧ!');return n};
+  const chk=v=>{if(v&&typeof v==='object'&&!Array.isArray(v)&&v.e)throw Error(v.e);return v};
+  function cmp(){let a=cc();while(['=','<','>','<=','>=','<>'].includes(pk())){const o=nx(),b=sc(cc());a=sc(a);a=o==='='?a==b:o==='<'?a<b:o==='>'?a>b:o==='<='?a<=b:o==='>='?a>=b:a!=b}return a}
+  function cc(){let a=ad();while(pk()==='&'){nx();a=String(sc(a))+String(sc(ad()))}return a}
+  function ad(){let a=mu();while(pk()==='+'||pk()==='-'){const o=nx(),b=mu();a=o==='+'?num(a)+num(b):num(a)-num(b)}return a}
+  function mu(){let a=un();while(pk()==='*'||pk()==='/'){const o=nx(),b=un();if(o==='*')a=num(a)*num(b);else{if(num(b)===0)throw Error('#ДЕЛ/0!');a=num(a)/num(b)}}return a}
+  function un(){if(pk()==='-'){nx();return-num(un())}if(pk()==='+'){nx();return un()}return pw()}
+  function pw(){const a=pc();if(pk()==='^'){nx();return Math.pow(num(a),num(un()))}return a}
+  function pc(){let a=at();while(pk()==='%'){nx();a=num(a)/100}return a}
+  function at(){const c=nx();if(c===undefined)throw Error('#ИМЯ?');
+    if(c[0]==='"')return c.slice(1,-1);
+    if(/^[\d.]/.test(c))return parseFloat(c);
+    if(c==='('){const v=cmp();if(nx()!==')')throw Error('#ИМЯ?');return v}
+    const up=c.toUpperCase();
+    if(pk()==='('){nx();const args=[];if(pk()!==')'){for(;;){args.push(cmp());if(pk()===','||pk()===';'){nx();continue}break}}if(nx()!==')')throw Error('#ИМЯ?');return call(XA[up]||up,args)}
+    if(/^[A-Z]{1,3}\d+$/.test(up)){if(pk()===':'){nx();const e=nx();if(!e||!/^[A-Za-z]{1,3}\d+$/.test(e))throw Error('#ИМЯ?');return rng(up,e.toUpperCase())}return chk(get(up))}
+    const bv=LASTENV.v[c];if(bv!==undefined){if(bv instanceof Q)return bv.v;if(isM(bv))throw Error('#ЗНАЧ!');return bv}
+    throw Error('#ИМЯ?')}
+  function rng(a,b){const[,c1,r1]=a.match(/^([A-Z]+)(\d+)$/),[,c2,r2]=b.match(/^([A-Z]+)(\d+)$/),out=[];
+    for(let r=Math.min(+r1,+r2);r<=Math.max(+r1,+r2);r++)for(let c=Math.min(colIdx(c1),colIdx(c2));c<=Math.max(colIdx(c1),colIdx(c2));c++)out.push(chk(get(colName(c)+r)));return out}
+  function call(f,args){const nums=()=>args.flatMap(v=>Array.isArray(v)?v:[v]).filter(v=>typeof v==='number');
+    switch(f){case'SUM':return nums().reduce((s,v)=>s+v,0);
+      case'AVERAGE':{const a=nums();if(!a.length)throw Error('#ДЕЛ/0!');return a.reduce((s,v)=>s+v,0)/a.length}
+      case'MIN':{const a=nums();return a.length?Math.min(...a):0}case'MAX':{const a=nums();return a.length?Math.max(...a):0}case'COUNT':return nums().length;
+      case'ROUND':{const k=Math.pow(10,args[1]===undefined?0:num(args[1]));return Math.round(num(args[0])*k)/k}
+      case'ABS':return Math.abs(num(args[0]));case'SQRT':{const v=num(args[0]);if(v<0)throw Error('#ЧИСЛО!');return Math.sqrt(v)}
+      case'POWER':return Math.pow(num(args[0]),num(args[1]));case'MOD':{const b=num(args[1]);if(!b)throw Error('#ДЕЛ/0!');const a=num(args[0]);return a-b*Math.floor(a/b)}
+      case'IF':return sc(args[0])?args[1]:(args[2]===undefined?false:args[2]);case'PI':return Math.PI;
+      case'SIN':return Math.sin(num(args[0]));case'COS':return Math.cos(num(args[0]));case'TAN':return Math.tan(num(args[0]));case'LN':return Math.log(num(args[0]));case'EXP':return Math.exp(num(args[0]));
+      default:throw Error('#ИМЯ?')}}
+  const v=cmp();if(i<t.length)throw Error('#ИМЯ?');return sc(v)}
+function xEval(r){const cache={},busy={};const get=a=>{if(a in cache)return cache[a];if(busy[a])throw Error('#ЦИКЛ!');busy[a]=1;
+  const raw=(r.cells&&r.cells[a])||'';let v;
+  try{if(raw[0]==='=')v=xfm(raw.slice(1),get);else if(raw!==''&&!isNaN(+raw.replace(',','.')))v=+raw.replace(',','.');else v=raw}catch(e){v={e:e.message}}
+  busy[a]=0;cache[a]=v;return v};return get}
+function tblHTML(r,on){const R=r.rows||6,C=r.cols||4,get=xEval(r);let h='<table class="xt"><thead><tr><th></th>';
+  for(let c=0;c<C;c++)h+=`<th>${colName(c)}</th>`;h+='</tr></thead><tbody>';
+  for(let i=1;i<=R;i++){h+=`<tr><th>${i}</th>`;for(let c=0;c<C;c++){const a=colName(c)+i,v=get(a);let tx,cl='';
+    if(v&&typeof v==='object'&&v.e){tx=XE(v.e);cl='er'}else if(typeof v==='number'){tx=XE(fmt(v));cl='num'}else if(typeof v==='boolean')tx=v?'ИСТИНА':'ЛОЖЬ';else tx=XE(v);
+    h+=`<td data-c="${a}" class="${cl}${on&&r.ac===a?' ac':''}">${tx}</td>`}h+='</tr>'}
+  return h+'</tbody></table>'}
+function xLoad(){const r=sel;if(!r||r.type!=='tb')return;$('#xa').textContent=r.ac;$('#xi').value=(r.cells&&r.cells[r.ac])||''}
+function xCsv(r){const get=xEval(r),R=r.rows||6,C=r.cols||4;let out='';
+  for(let i=1;i<=R;i++){const row=[];for(let c=0;c<C;c++){const v=get(colName(c)+i);row.push(v&&v.e?v.e:typeof v==='number'?String(v).replace('.',','):typeof v==='boolean'?(v?'ИСТИНА':'ЛОЖЬ'):'"'+String(v).replace(/"/g,'""')+'"')}out+=row.join(';')+'\r\n'}
+  saveFile('table.csv','\ufeff'+out).then(h=>{if(h)toast('Таблица сохранена в CSV (разделитель «;», откроется в Excel)')})}
+$('#xi').addEventListener('input',e=>{const r=sel;if(!r||r.type!=='tb')return;r.cells=r.cells||{};const v=e.target.value;if(v==='')delete r.cells[r.ac];else r.cells[r.ac]=v;refresh();save()});
+$('#xi').addEventListener('keydown',e=>{const r=sel;if(!r||r.type!=='tb')return;const m=r.ac.match(/^([A-Z]+)(\d+)$/);if(!m)return;let c=colIdx(m[1]),n=+m[2];
+  if(e.key==='Enter'){e.preventDefault();n=Math.max(1,Math.min(r.rows||6,n+(e.shiftKey?-1:1)))}
+  else if(e.key==='Tab'){e.preventDefault();c=Math.min((r.cols||4)-1,Math.max(0,c+(e.shiftKey?-1:1)))}else return;
+  r.ac=colName(c)+n;xLoad();refresh();$('#xi').select()});
+$('#xsheet').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const r=sel;if(!r||r.type!=='tb')return;
+  if(b.id==='xok')return select(null);const k=b.dataset.x,R=r.rows||6,C=r.cols||4;
+  if(k==='r+')r.rows=R+1;else if(k==='c+')r.cols=C+1;else if(k==='r-'&&R>1)r.rows=R-1;else if(k==='c-'&&C>1)r.cols=C-1;else if(k==='csv')return xCsv(r);
+  refresh();save()});
+/* ---------- совместный доступ ---------- */
+let DB=null,RO=false,USER=null,ROOM=null,synced=false,flT=0,slAct=false,inbox=[],PEERS=[],NAMES={};const known={},chain={};
+const rj=r=>JSON.stringify(r,(k,v)=>k==='val'||k==='err'||k==='pts'||k==='sl'?undefined:v);
+const wr=(id,f)=>{chain[id]=(chain[id]||Promise.resolve()).then(f).catch(e=>{const c=e&&e.code;if(c==='invalid_argument'){RO=true;toast('У вас нет права редактировать эту доску')}else if(c==='quota_exceeded')toast('Хранилище совместной доски заполнено')})};
+function syncFlush(){if(!DB||RO||!synced)return;clearTimeout(flT);flT=setTimeout(()=>{const now=new Set();
+  for(const r of regs){const id=String(r.id),j=rj(r);now.add(id);if(known[id]===j)continue;if(j.length>230000){toast('Картинка слишком велика для совместной доски');continue}known[id]=j;wr(id,()=>DB.doc('regs/'+id).set({j,t:Date.now()}))}
+  for(const id of Object.keys(known))if(!now.has(id)){delete known[id];wr(id,()=>DB.doc('regs/'+id).delete())}},500)}
+function applyInbox(){if((drag&&drag.moved)||slAct||!inbox.length)return;let ch=false;
+  for(const m of inbox.splice(0)){const k=regs.findIndex(r=>String(r.id)===m.id);
+    if(m.rm){delete known[m.id];if(k>=0){if(sel===regs[k]){sel=null;sheet.classList.remove('open');tsheet.classList.remove('open');$('#xsheet').classList.remove('open')}regs.splice(k,1);ch=true}continue}
+    known[m.id]=m.j;if(k>=0&&(sel===regs[k]||rj(regs[k])===m.j))continue;
+    try{const nr=JSON.parse(m.j);if(nr.tree)walk(nr.tree);if(k>=0)regs[k]=nr;else regs.push(nr);ch=true}catch(_){}}
+  if(ch){evalAll();draw();save()}}
+function subRegs(){const slow=setTimeout(()=>toast('Совместная доска пока недоступна — работаем локально'),10000);
+  DB.collection('regs').onSnapshot(snap=>{
+    if(!snap.metadata.fromCache){clearTimeout(slow);if(!synced){synced=true;if(!snap.empty){const ids=new Set(snap.docs.map(d=>d.id));regs=regs.filter(r=>ids.has(String(r.id)))}}}
+    for(const c of snap.docChanges()){const id=c.doc.id;if(c.type==='removed')inbox.push({id,rm:1});else{const d=c.doc.data()||{};if(typeof d.j==='string')inbox.push({id,j:d.j})}}
+    applyInbox();if(synced)syncFlush()},
+    e=>toast('Совместная доска: '+((e&&e.code)||'ошибка')))}
+const shPres=r=>{if(ROOM)ROOM.presence({sel:r?String(r.id):null}).catch(()=>{})};
+const pc=p=>{const c=p.presence&&p.presence.color;return typeof c==='string'&&/^[#a-z0-9(),.% -]{3,40}$/i.test(c)?c:'#7b3fe4'};
+function markPeers(){document.querySelectorAll('.pn').forEach(e=>e.remove());document.querySelectorAll('.reg').forEach(e=>{e.style.outline=''});
+  PEERS.forEach(p=>{if(p.isMe||p.kind!=='viewer')return;const id=p.presence&&p.presence.sel;if(!id)return;const el=world.querySelector('.reg[data-id="'+String(id).replace(/[^0-9]/g,'')+'"]');if(!el)return;
+    const c=pc(p);el.style.outline='3px solid '+c;const n=document.createElement('span');n.className='pn';n.style.background=c;n.textContent=(p.by&&NAMES[p.by])||'Кто-то';el.appendChild(n)})}
+async function showPeers(){const ps=PEERS.filter(p=>p.kind==='viewer'),ids=[...new Set(ps.map(p=>p.by).filter(Boolean))];
+  if(USER&&ids.length){try{const m=await USER.profiles(ids);ids.forEach(id=>{NAMES[id]=(m[id]&&m[id].name)||''})}catch(_){}}
+  $('#shb').hidden=false;$('#shb').textContent='👥 '+ps.length;
+  $('#shp').innerHTML=ps.map(p=>`<div class="pe"><i style="background:${pc(p)}"></i>${XE((p.by&&NAMES[p.by])||'Участник')}${p.isMe?' (вы)':''}</div>`).join('')+'<small>Пригласить: нажмите «Поделиться» на странице доски в claude.ai и дайте роль Contributor (редактирование) или Viewer (только просмотр). Изменения видны всем сразу.</small>';
+  markPeers()}
+$('#shb').onclick=()=>{$('#shp').hidden=!$('#shp').hidden};
+{const d0=draw;draw=function(){d0();markPeers()}}
+document.addEventListener('pointerdown',e=>{if(e.target.classList&&e.target.classList.contains('sl'))slAct=true},true);
+const inboxGo=()=>{if(slAct)slAct=false;setTimeout(applyInbox,0)};
+['pointerup','pointercancel'].forEach(n=>document.addEventListener(n,inboxGo,true));
+async function shInit(){
+  if(!(window.claude&&claude.use))return;
+  const[db,user,room]=await Promise.all(['db','user','room'].map(n=>claude.use(n).catch(()=>null)));
+  if(!db)return;DB=db;USER=user;
+  if(user){try{RO=(await user.can('data.write'))===false}catch(_){}}
+  if(RO){$('#add').hidden=true;$('#aib').hidden=true;toast('Режим просмотра: у вас нет права редактировать')}
+  subRegs();
+  if(room){ROOM=room;let me=null;try{me=user?await user.me():null}catch(_){}
+    room.presence({sel:null,color:(me&&me.color)||null}).catch(()=>{});room.onPeers(ch=>{PEERS=ch.peers;showPeers()},()=>{})}}
+shInit();
+/* ---------- экспорт ---------- */
+async function saveFile(name,data,alt){
+  const dl=window.claude&&claude.use?await claude.use('downloads').catch(()=>null):null;
+  if(dl){try{await dl.save({filename:alt||name,data});return 'cap'}catch(e){if(!e||e.code!=='declined')toast('Не удалось сохранить: '+((e&&(e.message||e.code))||'ошибка'));return ''}}
+  const u=URL.createObjectURL(new Blob([data]));const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);return 'link'}
+const TOK=/\d+\.?\d*|\.\d+|[a-zA-Zα-ωΑ-Ω][a-zA-Zα-ωΑ-Ω0-9]*|<=|>=|!=|[<>]|[+\-*\/^()\[\],;]/g;
+const XE=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const mid=n=>`<ml:id xml:space="preserve">${XE(n)}</ml:id>`;
+const ap=(o,...a)=>`<ml:apply><ml:${o}/>${a.join('')}</ml:apply>`;
+const FNM={sin:1,cos:1,tan:1,asin:1,acos:1,atan:1,ln:1,log:1,exp:1};
+function toMl(str,fns){
+  const t=str.match(TOK)||[];if(t.join('')!==str)throw Error('символ');let i=0;
+  const pk=()=>t[i],nx=()=>t[i++],isN=c=>c&&/^[\d.]/.test(c),isI=c=>c&&/^[a-zA-Zα-ωΑ-Ω]/.test(c);
+  const RL={'<':'lessThan','>':'greaterThan','<=':'lessOrEqual','>=':'greaterOrEqual','!=':'notEqual'};
+  function cmp(){const a=ex(),o=RL[pk()];if(o){nx();return ap(o,a,ex())}return a}
+  function ex(){let r=tm();while(pk()==='+'||pk()==='-'){const o=nx();r=ap(o==='+'?'plus':'minus',r,tm())}return r}
+  function tm(){let r=un();for(;;){const c=pk();if(c==='*'||c==='/'){nx();r=ap(c==='*'?'mult':'div',r,un())}else if(isI(c)||c==='('||c==='[')r=ap('mult',r,un());else return r}}
+  function un(){if(pk()==='-'){nx();return ap('neg',un())}if(pk()==='+'){nx();return un()}return pw()}
+  function pw(){const b=at();if(pk()==='^'){nx();return ap('pow',b,un())}return b}
+  function at(){const c=nx();if(c===undefined)throw Error('конец');
+    if(isN(c))return `<ml:real>${c}</ml:real>`;
+    if(c==='('){const r=cmp();if(nx()!==')')throw Error(')');return r}
+    if(c==='['){const rows=[[]];for(;;){rows[rows.length-1].push(ex());const d=nx();if(d===',')continue;if(d===';'){rows.push([]);continue}if(d===']')break;throw Error('матрица')}
+      return `<ml:matrix rows="${rows.length}" cols="${rows[0].length}">${rows.flat().join('')}</ml:matrix>`}
+    if(isI(c)){const B1=['sqrt','abs','det','inv','trn'];
+      if(pk()==='('&&(FNM[c]||fns.has(c)||B1.includes(c))){nx();const a=cmp();if(nx()!==')')throw Error(')');
+        return c==='sqrt'?ap('sqrt',a):c==='abs'||c==='det'?ap('absval',a):c==='inv'?ap('pow',a,'<ml:real>-1</ml:real>'):c==='trn'?ap('transpose',a):`<ml:apply>${mid(c)}${a}</ml:apply>`}
+      return mid(c==='pi'?'π':c)}
+    throw Error('токен '+c)}
+  const r=cmp();if(i<t.length)throw Error('лишнее');return r}
+async function expX(){
+  if(!regs.length)return toast('Доска пуста');
+  const IDR='[a-zA-Zα-ωΑ-Ω][a-zA-Zα-ωΑ-Ω0-9]*',fns=new Set();
+  regs.filter(r=>r.tree).forEach(r=>{const m=ser(r.tree).match(new RegExp('^('+IDR+')[(]'+IDR+'[)]:='));if(m)fns.add(m[1])});
+  const minX=Math.min(...regs.map(r=>r.x)),minY=Math.min(...regs.map(r=>r.y));let id=0,skipped=0,fb=0;const rs=[];
+  const reg=(r,w,h,body,dx=0)=>`<region region-id="${id}" left="${Math.round((r.x-minX)/2)+20+dx}" top="${Math.round((r.y-minY)/2.6)+20}" width="${w}" height="${h}" align-x="0" align-y="0" show-border="false" show-highlight="false" is-protected="false" z-order="${id++}" background-color="inherit" tag="">${body}</region>`;
+  const mth=b=>`<math optimize="false" disable-calc="false">${b}</math>`;
+  const txt=L=>`<text use-page-width="false" push-down="false" lock-width="false">${L.map(l=>`<p style="Normal" margin-left="0" margin-right="0" text-indent="0" text-align="left" list-style-type="none" tabs="inherit 0">${XE(l)}</p>`).join('')}</text>`;
+  for(const r of [...regs].sort((a,b)=>a.y-b.y||a.x-b.x)){
+    if(r.type==='t'){const L=(r.text||'').split('\n'),sz=r.size||22;rs.push(reg(r,Math.max(40,Math.round(Math.max(...L.map(l=>l.length))*sz*.3)),Math.max(18,Math.round(L.length*sz*.65)),txt(L)));continue}
+    if(!r.tree||r.type==='g'){skipped++;continue}
+    const q=ser(r.tree);if(!q)continue;const w=Math.max(30,q.length*7);
+    try{
+      if(q.includes(':=')){const m=q.match(new RegExp('^('+IDR+')(?:[(]('+IDR+')[)])?:=(.*)$'));if(!m)throw Error('lhs');
+        let rh=m[3];const ev=rh.endsWith('=');if(ev)rh=rh.slice(0,-1);
+        const lhs=m[2]?`<ml:function>${mid(m[1])}<ml:boundVars>${mid(m[2])}</ml:boundVars></ml:function>`:mid(m[1]);
+        const body=toMl(rh,fns);rs.push(reg(r,w,24,mth(`<ml:define>${lhs}${body}</ml:define>`)));
+        if(ev&&!m[2])rs.push(reg(r,40,24,mth(`<ml:eval>${mid(m[1])}</ml:eval>`),w+12))}
+      else if(q.length>1&&q.endsWith('='))rs.push(reg(r,w,24,mth(`<ml:eval>${toMl(q.slice(0,-1),fns)}</ml:eval>`)));
+      else rs.push(reg(r,w,24,mth(toMl(q,fns))))
+    }catch(e){fb++;rs.push(reg(r,w,24,txt([q])))}
+  }
+  const xml='<?xml version="1.0" encoding="UTF-8"?>\n<worksheet xmlns="http://schemas.mathsoft.com/worksheet30" xmlns:ws="http://schemas.mathsoft.com/worksheet30" xmlns:ml="http://schemas.mathsoft.com/math30" xmlns:u="http://schemas.mathsoft.com/units10" xmlns:p="http://schemas.mathsoft.com/provenance10">\n<regions>\n'+rs.join('\n')+'\n</regions>\n</worksheet>\n';
+  if(new DOMParser().parseFromString(xml,'application/xml').getElementsByTagName('parsererror').length)return toast('Ошибка экспорта: получился некорректный XML');
+  const how=await saveFile('worksheet.xmcd',xml,'worksheet.xmcd.txt');
+  if(how)toast('Экспортировано регионов: '+rs.length+(skipped?'; не перенесены графики и картинки: '+skipped:'')+(fb?'; текстом: '+fb:'')+(how==='cap'?'. Файл сохранён как .txt — удалите «.txt» из имени, чтобы открыть в Mathcad':''))}
+const pdfSvg=h=>h.replace(/class="gl"/g,'stroke="#e0dcea" stroke-width="1"').replace(/class="ax"/g,'stroke="#8a859c" stroke-width="1.3"').replace(/class="cv"/g,'stroke="#d4156b" fill="none" stroke-width="2.4" stroke-linejoin="round"').replace(/<text /g,'<text fill="#6f6a88" font-size="11" font-family="sans-serif" ');
+async function expPdf(){
+  if(!window.html2canvas||!window.jspdf)return toast('Библиотеки PDF не загрузились — проверьте интернет и повторите');
+  toast('Готовлю PDF…');const sv=sel;if(sel)select(null);
+  try{const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'pt',format:'a4',orientation:'portrait'}),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+    for(let i=0;i<npages;i++){
+      const c=document.createElement('div');c.className='exp';c.style.cssText=`width:${PW}px;height:${PH}px`;
+      c.innerHTML=regs.filter(r=>r.y<(i+1)*PH&&r.y>i*PH-420).map(r=>`<div class="reg${r.type==='t'?' tx':''}" style="left:${r.x+20}px;top:${r.y-i*PH}px">${pdfSvg(regBody(r,false))}${r.val!=null?`<span class="rv">${fmtV(r.val)}</span>`:''}</div>`).join('');
+      document.body.appendChild(c);
+      const cv=await html2canvas(c,{scale:2,backgroundColor:'#fff',logging:false,useCORS:true,windowWidth:PW,windowHeight:PH});
+      c.remove();if(i)doc.addPage();
+      doc.addImage(cv.toDataURL('image/jpeg',.92),'JPEG',0,0,W,H);
+      doc.setFontSize(9);doc.setTextColor(120);doc.text((i+1)+' / '+npages,W/2,H-12,{align:'center'})}
+    const how=await saveFile('worksheet.pdf',doc.output('arraybuffer'));if(how)toast('PDF готов')
+  }catch(e){toast('Не удалось создать PDF: '+(e&&e.message||e))}
+  if(sv)select(sv)}
+const syncT=()=>{$('#sz').textContent=sel.size||22;$('#bb').classList.toggle('on',!!sel.b);$('#ii').classList.toggle('on',!!sel.i)};
+const tset=f=>{if(!sel||sel.type!=='t')return;f(sel);syncT();draw();save()};
+ta.oninput=()=>tset(r=>r.text=ta.value);ff.onchange=()=>tset(r=>r.font=ff.value);
+tsheet.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.s)tset(r=>r.size=Math.max(10,Math.min(120,(r.size||22)+(b.dataset.s==='+'?2:-2))));
+  else if(b.id==='bb')tset(r=>r.b=!r.b);else if(b.id==='ii')tset(r=>r.i=!r.i);else if(b.id==='td')select(null)});
+
+/* жесты: перетаскивание, панорама, щипок */
+const ptr=new Map();let drag=null,pinch=0;
+const pd=()=>{const[a,b]=[...ptr.values()];return Math.hypot(a[0]-b[0],a[1]-b[1])};
+board.addEventListener('pointerdown',e=>{menu.hidden=true;if(e.target.closest('.x,.gz,.sl'))return;
+  ptr.set(e.pointerId,[e.clientX,e.clientY]);board.setPointerCapture(e.pointerId);
+  if(ptr.size===2){pinch=pd();drag=null;return}
+  const el=e.target.closest('.reg'),r=!RO&&el&&regs.find(q=>q.id===+el.dataset.id);
+  drag={x:e.clientX,y:e.clientY,t:e.target,el,r,moved:0,ox:r?r.x:px,oy:r?r.y:py,rs:!!e.target.closest('.rs'),ow:(r&&r.w)||(r&&r.type==='g'?320:240)}});
+board.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId))return;ptr.set(e.pointerId,[e.clientX,e.clientY]);
+  if(ptr.size===2){const d=pd(),[a,b]=[...ptr.values()];zoomAt(d/pinch,(a[0]+b[0])/2,(a[1]+b[1])/2);pinch=d;return}
+  if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(!drag.moved&&Math.hypot(dx,dy)<6)return;drag.moved=1;
+  if(drag.rs){const w=Math.max(120,Math.min(1200,drag.ow+dx/s));drag.r.w=w;drag.el.querySelector('.fig').style.width=w+'px'}
+  else if(drag.r){drag.r.x=drag.ox+dx/s;drag.r.y=drag.oy+dy/s;drag.el.style.left=drag.r.x+'px';drag.el.style.top=drag.r.y+'px'}
+  else{px=drag.ox+dx;py=drag.oy+dy;view()}});
+const up=e=>{ptr.delete(e.pointerId);if(!drag)return;const d=drag;drag=null;
+  if(d.moved){if(d.r){evalAll();draw()}save();return}
+  if(d.r){if(d.r.type==='tb'){const td=d.t.closest&&d.t.closest('td[data-c]');if(td){d.r.ac=td.dataset.c;if(sel===d.r){xLoad();refresh()}}}if(sel!==d.r)select(d.r);else if(d.r.tree){placeCaret(d.t,e.clientX);draw()}}else select(null)};
+board.addEventListener('pointerup',up);board.addEventListener('pointercancel',e=>{ptr.delete(e.pointerId);drag=null});
+board.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.deltaY<0?1.1:1/1.1,e.clientX,e.clientY)},{passive:false});
+let slT=0;
+world.addEventListener('input',e=>{const t=e.target;if(!t.classList||!t.classList.contains('sl')||!sel||!sel.tree)return;
+  const q=ser(sel.tree),i=q.indexOf(':=');if(i<0)return;const v=String(+parseFloat(t.value).toFixed(6));
+  root.length=0;[...q.slice(0,i)].forEach(c=>root.push({t:'c',v:c}));root.push({t:'c',v:'≔'});[...v].forEach(c=>root.push({t:'c',v:c}));
+  cur=last(root);evalAll();refresh();clearTimeout(slT);slT=setTimeout(save,300)});
+world.addEventListener('click',e=>{const z=e.target.closest('.gz button');
+  if(z&&sel){sel.R=Math.min(1000,Math.max(.5,(sel.R||10)*+z.dataset.d));evalAll();draw();save();return}
+  if(!e.target.closest('.x'))return;regs.splice(regs.indexOf(sel),1);select(null);evalAll();draw();save()});
+$('#add').onclick=()=>menu.hidden=!menu.hidden;$('#pp').onclick=()=>goPage(curPage()-1);$('#pnx').onclick=()=>goPage(curPage()+1);$('#pn').onclick=()=>goPage(curPage());menu.onclick=e=>{const b=e.target.closest('button');if(b)add(b.dataset.a)};$('#zi').onclick=()=>zoomAt(1.2,innerWidth/2,innerHeight/2);$('#zo').onclick=()=>zoomAt(1/1.2,innerWidth/2,innerHeight/2);
+
+/* ---------- клавиатура ---------- */
+const FN=['sin','cos','tan','cot','sec','csc','sinh','cosh','tanh','coth','arcsin','arccos','arctan','arccot','arsinh','arcosh','artanh','arcoth','ln','exp','abs','log','floor','ceil','round','sign','min','max','mod','nroot','if','perm','comb','det','inv','trn','root','int','dif'];
+const UN=['m','mm','cm','km','kg','g','t','s','ms','min','h','N','kN','MN','Pa','kPa','MPa','GPa','bar','J','kJ','MJ','W','kW','MW','V','kV','A','mA','Ω','Hz','L','K','deg'];
+const M1=['7','8','9','(',')','4','5','6','*','/','1','2','3','+','-','0','.','=','≔','F','x','y','π','Q','P'];
+const M2=[...FN,...'abcdefghijklmnopqrstuvwxyz','π','≔'],M3=['L','R','B','C','T','D'];
+const GR=[...'αβγδεζηθικλμνξρστυφχψω','Γ','Δ','Θ','Λ','Ξ','Σ','Φ','Ψ','Ω'];
+const LBL={M:'▦','H+':'+ряд','V+':'+стлб','H-':'−ряд','V-':'−стлб','*':'×','/':'÷','-':'−',F:'<span class="fr"><span>□</span><span>□</span></span>',P:'<i>x</i><sup>n</sup>',Q:'√',L:'◀',R:'▶',B:'⌫',D:'✓',T:'abc'};
+const AR={M:'Матрица','H+':'Добавить строку','V+':'Добавить столбец','H-':'Убрать строку','V-':'Убрать столбец',F:'Дробь',P:'Степень',Q:'Корень',L:'Влево',R:'Вправо',B:'Стереть',C:'Очистить',D:'Готово',T:'Буквы и функции','≔':'Присвоить'};
+const kb=(l,el)=>$(el).innerHTML=l.map(k=>`<button type="button" data-k="${k}"${AR[k]?` aria-label="${AR[k]}"`:''} class="${'*/+-=≔'.includes(k)?'o ':''}${k.length>1&&!LBL[k]?'sm ':''}${k==='D'?'ok':''}">${LBL[k]||k}</button>`).join('');
+const bxs='<span class="bx"></span>',FRL=`<span class="fr"><span>${bxs}</span><span>${bxs}</span></span>`;
+const KL={PAR:`(${bxs})`,F:FRL,Q:`√<span class="ov">${bxs}</span>`,P2:`${bxs}<sup>2</sup>`,P:`${bxs}<sup>n</sup>`,abs:`|${bxs}|`,FNf:'f(x)',nroot:`<sup>${bxs}</sup>√${bxs}`,M:'▦','H+':'+ряд','V+':'+стлб','H-':'−ряд','V-':'−стлб',
+  SUM:`<span class="op3"><span class="up">${bxs}</span><span class="sg">Σ</span><span class="lw">${bxs}</span></span>`,
+  PROD:`<span class="op3"><span class="up">${bxs}</span><span class="sg">Π</span><span class="lw">${bxs}</span></span>`,
+  INT:`<span class="op3"><span class="up">${bxs}</span><span class="sg">∫</span><span class="lw">${bxs}</span></span>`,
+  DDX:`<span class="fr"><span><i>d</i></span><span><i>d</i>x</span></span>`,LIM:`lim<sub>${bxs}</sub>`,
+  '*':'×','/':'÷','-':'−',U:'↶',L:'←',R:'→',D:'↵',B:'⌫',ABCT:'abc'};
+const TABS=[
+ ['a','+ −<br>× ÷',6,['PAR','<','7','8','9','/','F','Q','4','5','6','*','P2','x','1','2','3','-','π','≔','0','.','=','+']],
+ ['b','f(x) e<br>log ln',6,['abs','FNf','log','ln','exp','e','P','nroot','floor','ceil','round','sign','min','max','mod','if','perm','comb','!','>','≤','≥','≠','<']],
+ ['c','sin cos<br>tan cot',6,['deg','sin','cos','tan','cot','sec','π','arcsin','arccos','arctan','arccot','csc','sinh','cosh','tanh','coth','arsinh','arcosh','artanh','arcoth','e','(',')',',']],
+ ['d','lim dx<br>∫ Σ Π',6,['LIM','DDX','INT','SUM','PROD',',','root','int','dif','=','≔','x']],
+ ['m','матрицы<br>▦ det',6,['M','H+','V+','H-','V-',',','det','inv','trn']],
+ ['e','abc<br>a–z',7,[...'abcdefghijklmnopqrstuvwxyz','(',')']],
+ ['g','αβγ<br>Ω',8,GR],
+ ['u','ед.<br>кН м',7,UN]];
+sheet.innerHTML='<div class="tb" id="tb"></div><div class="pls" id="pls"></div><div id="gr"></div>';
+const lab=k=>KL[k]||k;
+const kcls=k=>(/^[\d.]$/.test(k)?'n ':'')+('*/+-=≔'.includes(k)&&k.length===1?'o ':'')+(k.length>3&&!KL[k]?'sm':'');
+const TBA={ABCT:'Буквы',U:'Отменить',L:'Влево',R:'Вправо',D:'Готово',B:'Стереть (удерживайте — очистить)'};
+$('#tb').innerHTML=['ABCT','U','L','R','D','B'].map(k=>`<button type="button" data-k="${k}" aria-label="${TBA[k]}">${KL[k]}</button>`).join('');
+$('#pls').innerHTML=TABS.map(t=>`<button type="button" class="pl" data-t="${t[0]}">${t[1]}</button>`).join('');
+$('#gr').innerHTML=TABS.map(t=>`<div class="kg2" data-g="${t[0]}" style="--c:${t[2]}" hidden>${t[3].map(k=>`<button type="button" data-k="${k}" class="${kcls(k)}">${lab(k)}</button>`).join('')}</div>`).join('');
+let tab='a',lastMath='a',hist=[];
+function showTab(id){tab=id;document.querySelectorAll('.kg2').forEach(g=>g.hidden=g.dataset.g!==id);document.querySelectorAll('.pl').forEach(p=>p.classList.toggle('on',p.dataset.t===id));if(!['e','g','u'].includes(id))lastMath=id}
+function tabTog(){showTab(['e','g','u'].includes(tab)?lastMath:'e')}
+function undo(){const s0=hist.pop();if(!s0||!sel||!sel.tree)return;root.length=0;root.push(...JSON.parse(s0));walk(root);cur=last(root);evalAll();draw();save()}
+showTab('a');
+let alt=0;
+function press(k){
+  if(k==='ABCT'){tabTog();return}if(k==='U')return undo();if(k!=='L'&&k!=='R'&&k!=='D'){hist.push(JSON.stringify(root));if(hist.length>60)hist.shift()}
+  if(k==='D')return select(null);
+  if(k==='F')insFrac();else if(k==='P')insE('pow');else if(k==='Q')insE('sqrt');else if(k==='M')insMat();else if(/^[HV][+-]$/.test(k))matOp(k);else if(TK[k])insTpl(k);else if(k==='PAR'){ins('(');ins(')');cur.idx--}else if(k==='P2'){insE('pow');ins('2');right()}else if(k==='FNf'){ins('f');ins('(');ins(')');cur.idx--}
+  else if(k==='L')left();else if(k==='R')right();else if(k==='B')back();
+  else if(k==='C'){root.length=0;cur={row:root,idx:0}}
+  else if(FN.includes(k)){[...k].forEach(ins);ins('(');ins(')');cur.idx--}else if(UN.includes(k))[...k].forEach(ins);
+  else ins(k);
+  evalAll();draw();save()}
+sheet.addEventListener('mousedown',e=>e.preventDefault());
+let lpT=0;
+sheet.addEventListener('pointerdown',e=>{const b=e.target.closest('button');if(b&&b.dataset.k==='B')lpT=setTimeout(()=>{lpT=-1;press('C')},550)});
+const lpEnd=()=>{if(lpT>0){clearTimeout(lpT);lpT=0}};['pointerup','pointerleave','pointercancel'].forEach(n=>sheet.addEventListener(n,lpEnd));
+sheet.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.t)return showTab(b.dataset.t);
+  if(b.dataset.k==='B'&&lpT===-1){lpT=0;return}press(b.dataset.k)});
+document.addEventListener('keydown',e=>{if(!sel||!sel.tree||/^(TEXTAREA|SELECT|INPUT)$/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key;let h=1;
+  if(/^[0-9.,+\-*=()<>a-zA-Z]$/.test(k))ins(k);else if(k===':')ins('≔');else if(k==='/')insFrac();else if(k==='^')insE('pow');
+  else if(k==='Backspace')back();else if(k==='ArrowLeft')left();else if(k==='ArrowRight')right();
+  else if(k==='ArrowUp')vert(-1);else if(k==='ArrowDown')vert(1);
+  else if(k==='Enter'||k==='Escape')return select(null);else h=0;
+  if(h){e.preventDefault();evalAll();draw();save()}});
+
+load();evalAll();draw();view();
+</script>
+</body>
+</html>
